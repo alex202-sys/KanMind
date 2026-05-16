@@ -32,11 +32,11 @@ class Ticket(models.Model):
     title = models.CharField(max_length=255)
     boards = models.OneToOneField(Boards, on_delete=models.SET_NULL, null=True)
     description = models.CharField(max_length=255)
-    status = models.CharField(max_length=20, choice=TicketStatus.choices,  default=TicketStatus.IN_PROGRESS)
-    priority = models.CharField(max_length=20, choice=TicketPriority.choices,  default=TicketPriority.MEDIUM)
+    status = models.CharField(max_length=20, choices=TicketStatus.choices,  default=TicketStatus.IN_PROGRESS)
+    priority = models.CharField(max_length=20, choices=TicketPriority.choices,  default=TicketPriority.MEDIUM)
     due_date = models.DateField()
-    assignee = models.OneToOneField(User, on_delete=models.SET_NULL, blank=True, null=True)
-    reviewer = models.OneToOneField(User, on_delete=models.SET_NULL, blank=True, null=True)
+    assignee = models.OneToOneField(User, on_delete=models.SET_NULL, blank=True, null=True, related_name='assignees')
+    reviewer = models.OneToOneField(User, on_delete=models.SET_NULL, blank=True, null=True, related_name='reviewers')
 
     def __str__(self):
         return f"{self.title} ({self.get_status_display()})"
