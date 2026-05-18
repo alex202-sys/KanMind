@@ -45,6 +45,7 @@ yarn-error.log*
 **/backend/.venv/
 **/backend/venv/
 **/backend/ENV/
+**/backend/.env
 
 # --- IDEs und Editoren ---
 .vscode/
