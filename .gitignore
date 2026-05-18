@@ -17,3 +17,4 @@ backend/db.sqlite3
 **/__pycache__/
 *.py[cod]
 *.env
+*Soloproject KanMind.md
