@@ -180,6 +180,73 @@ Status Codes -  **201:** Der Benutzer wurde erfolgreich erstellt. **400:** Ungü
 
 
 
+
+
+
+
+##### Lege im Stammverzeichnis deines Django-Projekts eine Datei namens .env an.
+
+Das „Stammverzeichnis des Django-Projekts“ (oft auch *Project Root* genannt) ist der Ordner, in dem die Datei **`manage.py`** liegt. (/backend)
+
+/KanMind/               <-- Das ist der Hauptordner deines Gesamtprojekts
+├── /frontend/
+└── /backend/           <-- HIERHER GEHÖRT DIE .env DATEI (Django-Stammverzeichnis)
+    ├── .env            <-- [NEUE DATEI]
+    ├── manage.py       
+    └── /core/          <-- (Hier liegen settings.py und urls.py)
+
+Pfad C:\Users\aleks\Desktop\DJANGO_PROJECT\KanMind\backend\  
+
+Datei .env im /backend/ nimmt intern von settings.py oder 
+
+```python
+python -c "from django.core.management.utils import get_random_secret_key; print(get_random_secret_key())"
+```
+
+.env in .gitignore eintragen
+
+```python
+# python-dotenv installieren:
+pip install python-dotenv
+```
+
+Secret Key in settings.py aus der .env laden
+
+```python
+# übertrage diese Zeile von settings.py 
+SECRET_KEY = 'django-insecure-5g3qku*=r6#j#-t)4o8!v8qrzs0z$jx(9(c49j4+@t3tq_s6=o'
+# in .env (ohne Anführungszeichen und keine Leerzeichen um das Gleichheitszeichen herum benutzen.)
+SECRET_KEY=django-insecure-5g3qku*=r6#j#-t)4o8!v8qrzs0z$jx(9(c49j4+@t3tq_s6=o
+
+# Eintrage in settings.py
+import os
+from dotenv import load_dotenv
+
+BASE_DIR = Path(__file__).resolve().parent.parent
+
+# SECURITY WARNING: keep the secret key used in production secret!
+load_dotenv()  # Lädt Variablen aus .env
+SECRET_KEY = os.getenv("SECRET_KEY")
+if not SECRET_KEY:
+    raise ValueError("SECRET_KEY is not set in the environment variables.")
+```
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 **UserProfileDetail** und permissions for owner Creater and Delete, nothing for no owner and no staff or admin
 
 ```python
