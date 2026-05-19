@@ -52,13 +52,14 @@ class UserProfileDetail(generics.RetrieveUpdateDestroyAPIView):
 
 class RegistrationView(generics.CreateAPIView):
     serializer_class = RegistrationSerializer
-    permission_classes = [AllowAny]
+    #permission_classes = [AllowAny]
 
     def post(self, request, *args, **kwargs):
              serializer = RegistrationSerializer(data=request.data)
              data={}
              if serializer.is_valid():
                 # Alles andere (Profil erstellen, Namen splitten) passiert automatisch im Serializer oben.
+                print(" def post request.data", request.data)
                 try:
                     saved_account = serializer.save()
                     token, created = Token.objects.get_or_create(user=saved_account)
@@ -68,12 +69,14 @@ class RegistrationView(generics.CreateAPIView):
                             'user_id': saved_account.pk # .pk oder .id gibt die ID zurück
                             # 'message': "User and Profile created successfully.",
                             }
-                    return Response(serializer.data, status=status.HTTP_201_CREATED)
+                    print(" def post data", data)
+                    print(" def post serializer.data", serializer.data)
+                    return Response(data, status=status.HTTP_201_CREATED)
                 except Exception as e:
                     return Response({"error": str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
              else:
                     return Response(serializer.errors,status=status.HTTP_400_BAD_REQUEST)
-                    data = serializer.errors   
+                    #data = serializer.errors   
 
 class UserLoginView(ObtainAuthToken):
         #permission_classes=[AllowAny]
@@ -88,8 +91,8 @@ class UserLoginView(ObtainAuthToken):
                   return Response({"error","User with same email dosnt match"}, status=status.HTTP_400_BAD_REQUEST ) 
 
              serializer = self.serializer_class(data=request.data)
-             print("request.data:", request.data)
-             print("serializer: ", serializer)
+            #  print("request.data:", request.data)
+            #  print("serializer: ", serializer)
 
              if serializer.is_valid():
                 user=serializer.validated_data['user']

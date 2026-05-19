@@ -39,6 +39,7 @@ class RegistrationSerializer(serializers.ModelSerializer):
 
     def validate_email(self, value):
         """ Prüft, ob die Email schon existiert -> HTTP 400 """
+        print("validate_email  value", value)
         if User.objects.filter(email=value).exists():
             raise serializers.ValidationError('User with the same email already exists')
         return value
