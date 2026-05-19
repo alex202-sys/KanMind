@@ -47,17 +47,11 @@ class UserProfileDetail(generics.RetrieveUpdateDestroyAPIView):
         if not request.user.is_staff and obj.user != request.user:
             self.permission_denied(
                 request, 
-                message="Nur der Besitzer oder ein Admin darf dieses Profil ändern."
+                message="Only the owner or an admin may modify this profile.."
             )
-
-
-
-
-
 
 class RegistrationView(generics.CreateAPIView):
     serializer_class = RegistrationSerializer
-    #permission_class = AllowAny
     permission_classes = [AllowAny]
 
     def post(self, request, *args, **kwargs):
@@ -69,7 +63,6 @@ class RegistrationView(generics.CreateAPIView):
                     saved_account = serializer.save()
                     token, created = Token.objects.get_or_create(user=saved_account)
                     data = {'token': token.key,
-                            #'username': saved_account.username,
                             'fullname': f"{saved_account.first_name} {saved_account.last_name}".strip() or saved_account.username,
                             'email': saved_account.email,
                             'user_id': saved_account.pk # .pk oder .id gibt die ID zurück

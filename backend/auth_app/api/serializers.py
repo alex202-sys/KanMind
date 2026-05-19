@@ -51,9 +51,9 @@ class RegistrationSerializer(serializers.ModelSerializer):
     
     def validate(self, data):
         """ Prüft, ob Passwörter übereinstimmen -> HTTP 400 """
-        # print("def validate: password:", data.get('password') , "   repeat_password:", data.get('repeated_password'))
+        print("def validate: password:", data.get('password') , "   repeat_password:", data.get('repeated_password'))
         if data.get('password') != data.get('repeated_password'):
-          print("def validate:  data:", data)
+          print("passwor is no valid.  data:", data)
           #raise serializers.ValidationError({"error":"Passwords do not match."})  
           # Hier geben wir ein Dictionary zurück, damit das Frontend weiß, welches Feld falsch ist
           raise serializers.ValidationError({"password": "Passwords do not match"})
