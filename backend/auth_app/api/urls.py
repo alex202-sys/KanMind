@@ -8,8 +8,9 @@ urlpatterns = [
     # path('',),
     path('profiles/', UserProfileList.as_view(), name='userprofile-list'),
     path('profiles/<int:pk>/', UserProfileDetail.as_view(), name='userprofile-detail'),
-    path('registration/', RegistrationView.as_view(), name='registration'),
-    path('login/', UserLoginView.as_view(), name='login'),
+
+    path('registration/', RegistrationView.as_view(), name='api-registration'),
+    path('login/', UserLoginView.as_view(), name='api-login'),
     #path('login/', obtain_auth_token, name='login'),
 
 ]

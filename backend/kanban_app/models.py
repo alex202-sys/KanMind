@@ -3,22 +3,22 @@ from django.contrib.auth.models import User
 from django.db import models
 
 # Create your models here.
-class Boards(models.Model):
+class Board(models.Model):
     title = models.CharField(max_length=155)
-    owner_id = models.OneToOneField(User, on_delete=models.CASCADE)
-    member = models.ManyToManyField(User, related_name='members')
+    owner = models.ForeignKey(User, null=True, on_delete=models.SET_NULL, related_name='owner')
+    member = models.ManyToManyField(User,blank=True, null=True,  related_name='members')
 
     def __str__(self):
         return self.title
 
-class TicketStatus(models.TextChoices):
+class TaskStatus(models.TextChoices):
     IN_PROGRESS = 'in-progress', 'In Progress'
     TODO = 'to-do', 'To-Do'
     DONE = 'done', 'Done' 
     REVIEW = 'review', 'Review' 
      
 
-class TicketPriority(models.TextChoices):
+class TaskPriority(models.TextChoices):
     HIGH = 'high', 'High'
     MEDIUM = 'medium', 'Medium'
     LOW = 'low', 'Low' 
@@ -28,12 +28,12 @@ class TicketPriority(models.TextChoices):
     # ticket.save()
 
 
-class Ticket(models.Model):
+class Task(models.Model):
     title = models.CharField(max_length=255)
-    boards = models.OneToOneField(Boards, on_delete=models.SET_NULL, null=True)
+    board = models.ForeignKey(Board, on_delete=models.SET_NULL, blank=True, null=True, related_name='boards')
     description = models.CharField(max_length=255)
-    status = models.CharField(max_length=20, choices=TicketStatus.choices,  default=TicketStatus.IN_PROGRESS)
-    priority = models.CharField(max_length=20, choices=TicketPriority.choices,  default=TicketPriority.MEDIUM)
+    status = models.CharField(max_length=20, choices=TaskStatus.choices,  default=TaskStatus.IN_PROGRESS)
+    priority = models.CharField(max_length=20, choices=TaskPriority.choices,  default=TaskPriority.MEDIUM)
     due_date = models.DateField()
     assignee = models.OneToOneField(User, on_delete=models.SET_NULL, blank=True, null=True, related_name='assignees')
     reviewer = models.OneToOneField(User, on_delete=models.SET_NULL, blank=True, null=True, related_name='reviewers')
