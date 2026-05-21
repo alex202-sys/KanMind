@@ -1,6 +1,6 @@
 from rest_framework import serializers
 from django.contrib.auth import get_user_model
-from kanban_app.models import Board, Task,  TaskStatus, TaskPriority
+from kanban_app.models import Board, Task,  TaskStatus, TaskPriority, Comment
 
 
 User = get_user_model()
@@ -15,16 +15,31 @@ class BoardsSerializer(serializers.ModelSerializer):
     owner_id = serializers.SerializerMethodField()
     class Meta:
         model = Board
-        fields = [
-            'id', 
-            'title', 
-            'member_count', 
-            'tasks_count', 
-            'tasks_to_do_count', 
-            'tasks_high_prio_count', 
-            'owner_id'
-        ]
-        #fields = '__all__'
+        
+        if not User.is_superuser: 
+            fields = [
+                'id', 
+                'title', 
+                'member_count', 
+                'tasks_count', 
+                'tasks_to_do_count', 
+                'tasks_high_prio_count', 
+                'owner_id'
+            ]
+        else:
+            #fields = '__all__'
+            fields = [
+                'id', 
+                'title', 
+                'tasks',
+                'tasks_count', 
+                'tasks_to_do_count', 
+                'tasks_high_prio_count', 
+                'owner_id',
+                'owner',
+                'member_count', 
+                'member'
+            ]
 
     # 1. Zählt die Mitglieder des Boards
     def get_member_count(self, obj):
@@ -55,7 +70,65 @@ class TaskSerializer(serializers.ModelSerializer):
     # oder fields = '__all__' oder hier andere definieren 
     #status = serializers.ChoiceField(choices=TaskStatus.choices,  default=TaskStatus.IN_PROGRESS)
     #priority = serializers.ChoiceField(choices=TaskPriority.choices,  default=TaskPriority.MEDIUM)
+    comments_count = serializers.SerializerMethodField()
+    assignee_id=serializers.PrimaryKeyRelatedField(
+        queryset=User.objects.all(),
+        source='assignee',
+        write_only=True,
+        required=False,
+        allow_null=True 
+    )
+    
+    assignee = serializers.IntegerField(source='assignee.id', read_only=True, allow_null=True)
     class Meta:
         model = Task
-        fields = '__all__'
+        #fields = '__all__'
         #fields = ['id', 'title', 'status', 'priority']
+        if not User.is_superuser: 
+            fields = [
+                'id',
+                'board', 
+                'title', 
+                'description',
+                'status', 
+                'priority', 
+                'assignee', 
+                'assignee_id', 
+                'reviewer',
+                'due_date',
+                'comments_count'
+            ]
+        else:
+            fields = [
+                'id',
+                'board', 
+                'title', 
+                'description',
+                'status', 
+                'priority', 
+                'assignee', 
+                'assignee_id', 
+                'reviewer',
+                'due_date',
+                'comments_count'
+            ]
+
+    def get_assignee_id(self, obj):
+        # Wenn ein owner existiert, gib seine ID zurück, andernfalls die 0
+        if obj.assignee:
+            return obj.assignee.id
+        return None 
+    
+    def get_reviewer_id(self, obj):
+        # Wenn ein owner existiert, gib seine ID zurück, andernfalls die 0
+        if obj.reviewer:
+            return obj.reviewer.id
+        return None 
+    
+    def get_comments_count(self,obj):
+        return obj.comments.count()
+        
+class CommentSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Comment
+        fields = '__all__'

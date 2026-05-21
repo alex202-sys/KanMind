@@ -35,8 +35,13 @@ class Task(models.Model):
     status = models.CharField(max_length=20, choices=TaskStatus.choices,  default=TaskStatus.IN_PROGRESS)
     priority = models.CharField(max_length=20, choices=TaskPriority.choices,  default=TaskPriority.MEDIUM)
     due_date = models.DateField()
-    assignee = models.OneToOneField(User, on_delete=models.SET_NULL, blank=True, null=True, related_name='assignees')
-    reviewer = models.OneToOneField(User, on_delete=models.SET_NULL, blank=True, null=True, related_name='reviewers')
+    assignee = models.ForeignKey(User, on_delete=models.SET_NULL, blank=True, null=True, related_name='assigned_tasks')
+    reviewer = models.ForeignKey(User, on_delete=models.SET_NULL, blank=True, null=True, related_name='reviewed_tasks')
 
     def __str__(self):
         return f"{self.title} ({self.get_status_display()})"
+    
+class Comment(models.Model):
+    task = models.ForeignKey(Task, on_delete=models.CASCADE, blank=True, null=True, related_name='comments')
+    text = models.TextField()
+    created_at = models.DateTimeField(auto_now_add=True)
