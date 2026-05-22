@@ -2,6 +2,7 @@ from .serializers import BoardsSerializer, TaskSerializer
 from kanban_app.models import Board, Task
 from rest_framework import permissions, generics, mixins, viewsets
 #from .permissions import isOwnerOrMitglied
+from rest_framework.permissions import IsAuthenticatedOrReadOnly, IsAuthenticated
 from django.db.models import Q
 
 
@@ -48,5 +49,5 @@ class TasksView(mixins.ListModelMixin,
     
     queryset = Task.objects.all()
     serializer_class = TaskSerializer
+    permission_classes = [IsAuthenticatedOrReadOnly]
 
-    

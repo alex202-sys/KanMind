@@ -65,6 +65,16 @@ class BoardsSerializer(serializers.ModelSerializer):
             return obj.owner.id
         return None 
 
+class UserNestedSerializer(serializers.ModelSerializer):
+    fullname = serializers.SerializerMethodField()
+    class Meta:
+        model = User
+        fields = ['id', 'email', 'fullname']
+
+    def get_fullname(self, obj):
+        # Kombiniert Vor- und Nachname. Falls leer, wird der Username genutzt.
+        full_name = f"{obj.first_name} {obj.last_name}".strip()
+        return full_name if full_name else obj.username
 
 class TaskSerializer(serializers.ModelSerializer):
     # oder fields = '__all__' oder hier andere definieren 
@@ -78,46 +88,37 @@ class TaskSerializer(serializers.ModelSerializer):
         required=False,
         allow_null=True 
     )
-    
-    assignee = serializers.IntegerField(source='assignee.id', read_only=True, allow_null=True)
+    reviewer_id=serializers.PrimaryKeyRelatedField(
+        queryset=User.objects.all(),
+        source='reviewer',
+        write_only=True,
+        required=False,
+        allow_null=True 
+    )
+    # assignee = serializers.IntegerField(source='assignee.id', read_only=True, allow_null=True)
+    # reviewer = serializers.IntegerField(source='reviewer.id', read_only=True, allow_null=True)
+
+    # assignee = serializers.StringRelatedField(many=True, read_only=True)
+    # reviewer = serializers.StringRelatedField(many=True, read_only=True)
+    assignee = UserNestedSerializer(read_only=True, allow_null=True)
+    reviewer = UserNestedSerializer(read_only=True, allow_null=True)
     class Meta:
         model = Task
         #fields = '__all__'
-        #fields = ['id', 'title', 'status', 'priority']
-        if not User.is_superuser: 
-            fields = [
-                'id',
-                'board', 
-                'title', 
-                'description',
-                'status', 
-                'priority', 
-                'assignee', 
-                'assignee_id', 
-                'reviewer',
-                'due_date',
-                'comments_count'
-            ]
-        else:
-            fields = [
-                'id',
-                'board', 
-                'title', 
-                'description',
-                'status', 
-                'priority', 
-                'assignee', 
-                'assignee_id', 
-                'reviewer',
-                'due_date',
-                'comments_count'
-            ]
-
-    def get_assignee_id(self, obj):
-        # Wenn ein owner existiert, gib seine ID zurück, andernfalls die 0
-        if obj.assignee:
-            return obj.assignee.id
-        return None 
+        fields = [
+            'id',
+            'board', 
+            'title', 
+            'description',
+            'status', 
+            'priority', 
+            'assignee', 
+            'assignee_id', 
+            'reviewer',
+            'reviewer_id',
+            'due_date',
+            'comments_count'
+        ]
     
     def get_reviewer_id(self, obj):
         # Wenn ein owner existiert, gib seine ID zurück, andernfalls die 0
@@ -125,8 +126,16 @@ class TaskSerializer(serializers.ModelSerializer):
             return obj.reviewer.id
         return None 
     
+    def get_assignee_id(self, obj):
+        # Wenn ein owner existiert, gib seine ID zurück, andernfalls die 0
+        if obj.assignee:
+            return obj.assignee.id
+        return None 
+
     def get_comments_count(self,obj):
-        return obj.comments.count()
+        if hasattr(obj, 'comments'):
+            return obj.comments.count()
+        return obj.comment_set.count()
         
 class CommentSerializer(serializers.ModelSerializer):
     class Meta:
