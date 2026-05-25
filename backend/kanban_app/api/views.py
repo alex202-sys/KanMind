@@ -105,3 +105,25 @@ class TasksView(mixins.ListModelMixin,
         return Task.objects.filter(
             Q(board_member=user) | Q(board_owner=user)
         ).distinct()
+    
+    def destroy(self, request, *args, **kwargs):
+        # Holt die Task (wirft automatisch 404, wenn sie laut get_queryset nicht existiert)
+        instance = self.get_object()
+        user = request.user
+
+        # Superuser darf immer löschen
+        if user.is_superuser:
+            return super().destroy(request, *args, **kwargs)
+
+        # Prüfen, ob der User der Ersteller der Task ODER der Besitzer des Boards ist
+        # HINWEIS: Passen Sie 'creator' an das exakte Feld in Ihrem Task-Model an (z.B. 'created_by')
+        is_task_creator = getattr(instance, 'creator', None) == user
+        is_board_owner = instance.board.owner == user
+
+        if not (is_task_creator or is_board_owner):
+            raise PermissionDenied(
+                "403: Verboten. Nur der Ersteller der Task oder der Eigentümer des Boards kann eine Task löschen."
+            )
+
+        # Führt die dauerhafte Löschung aus (gibt HTTP 204 No Content zurück)
+        return super().destroy(request, *args, **kwargs)
