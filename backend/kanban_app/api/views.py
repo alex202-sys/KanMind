@@ -3,12 +3,17 @@ from kanban_app.models import Board, Task
 from rest_framework import permissions, generics, mixins, viewsets
 #from .permissions import isOwnerOrMitglied
 from rest_framework.permissions import IsAuthenticatedOrReadOnly, IsAuthenticated
+from rest_framework.decorators import action
+from rest_framework.response import Response
 from django.db.models import Q
 
 
 #class BoardListView(generics.ListCreateAPIView):
 class BoardListView(mixins.ListModelMixin,
                     mixins.CreateModelMixin,
+                    mixins.UpdateModelMixin,
+                    mixins.RetrieveModelMixin,
+                    mixins.DestroyModelMixin,
                     viewsets.GenericViewSet):
     
     queryset = Board.objects.all()
@@ -46,8 +51,57 @@ class TasksView(mixins.ListModelMixin,
                 mixins.DestroyModelMixin,
                 viewsets.GenericViewSet
                 ):
+    """
+    API-Endpunkt für die Verwaltung von Tasks.
     
+    DELETE /api/tasks/{id}/
+    Achtung: Die Löschung einer Task ist dauerhaft und kann nicht rückgängig gemacht werden!
+    """
     queryset = Task.objects.all()
     serializer_class = TaskSerializer
-    permission_classes = [IsAuthenticatedOrReadOnly]
+    #permission_classes = [IsAuthenticatedOrReadOnly]
+    permission_classes = [IsAuthenticated]
+    
+    @action(detail=False, methods=['get'], url_path='assigned-to-me')
+    def assigned_to_me(self, request):
+        """
+        Returns all tasks for which the currently
+        logged-in user is listed as 'assigned'.
+        """
+        # Filtert die Tasks nach dem aktuellen User (request.user)
+        user_tasks = Task.objects.filter(assignee=request.user)
+        
+        # Nutzen des bestehenden Serializers (inklusive Pagination, falls aktiv)
+        page = self.paginate_queryset(user_tasks)
+        if page is not None:
+            serializer = self.get_serializer(page, many=True)
+            return self.get_paginated_response(serializer.data)
 
+        serializer = self.get_serializer(user_tasks, many=True)
+        return Response(serializer.data)
+    
+    @action(detail=False, methods=['get'], url_path='reviewing')
+    def reviewing_to_me(self, request):
+        """
+        Returns all tasks for which the currently
+        logged-in user is listed as 'reviewing'.
+        """
+        user_tasks = Task.objects.filter(reviewer=request.user)
+        page = self.paginate_queryset(user_tasks)
+        if page is not None:
+            serializer = self.get_serializer(page, many=True)
+            return self.get_paginated_responser(serializer.data)
+        
+        serializer = self.get_serializer(user_tasks, many=True)
+        return Response(serializer.data)
+    
+    # @action(detail=False, methods=['post'], url_path='assigned-to-me')
+    # def assigned_to_me(self, request):
+
+    def get_queryset(self):
+        user = self.request.user
+        if user.is_superuser:
+            return Task.objects.all()
+        return Task.objects.filter(
+            Q(board_member=user) | Q(board_owner=user)
+        ).distinct()

@@ -10,6 +10,7 @@ class Board(models.Model):
 
     def __str__(self):
         return self.title
+        return f"{self.id} {self.title} ({self.get_member_display()})"
 
 class TaskStatus(models.TextChoices):
     IN_PROGRESS = 'in-progress', 'In Progress'
@@ -37,7 +38,10 @@ class Task(models.Model):
     due_date = models.DateField()
     assignee = models.ForeignKey(User, on_delete=models.SET_NULL, blank=True, null=True, related_name='assigned_tasks')
     reviewer = models.ForeignKey(User, on_delete=models.SET_NULL, blank=True, null=True, related_name='reviewed_tasks')
-
+    creator = models.ForeignKey(User, on_delete=models.SET_NULL, blank=True, null=True, related_name='created_by_tasks')
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+    
     def __str__(self):
         return f"{self.title} ({self.get_status_display()})"
     
