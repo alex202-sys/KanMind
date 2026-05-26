@@ -237,7 +237,15 @@ class TaskSerializer(serializers.ModelSerializer):
 
 
 
-class CommentSerializer(serializers.ModelSerializer):
+class TaskCommentSerializer(serializers.ModelSerializer):
+    author = serializers.SerializerMethodField()
+
     class Meta:
         model = Comment
-        fields = '__all__'
+        fields = ['id', 'created_at', 'author', 'content']
+
+    def get_author(self, obj):
+        if obj.author:
+            return obj.author.get_full_name() or obj.author.username
+        return "Unbekannter Autor"
+

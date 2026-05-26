@@ -1,11 +1,11 @@
-from .serializers import BoardsSerializer, TaskSerializer, UserNestedSerializer
-from kanban_app.models import Board, Task
+from .serializers import BoardsSerializer, TaskSerializer, UserNestedSerializer, TaskCommentSerializer
+from kanban_app.models import Board, Task, Comment
 from rest_framework import permissions, generics, mixins, viewsets
 #from .permissions import isOwnerOrMitglied
-from rest_framework.permissions import IsAuthenticatedOrReadOnly, IsAuthenticated
+from rest_framework.permissions import IsAuthenticatedOrReadOnly, IsAuthenticated, AllowAny
 from rest_framework.decorators import action
 from rest_framework.response import Response
-from rest_framework.exceptions import PermissionDenied
+from rest_framework.exceptions import PermissionDenied, NotFound
 from rest_framework import status
 from django.contrib.auth.models import User
 from django.db.models import Q
@@ -81,6 +81,92 @@ class TasksView(mixins.ListModelMixin,
         # Speichert die neue Task und setzt automatisch den angemeldeten User als Creator
         serializer.save(creator=self.request.user)
 
+
+    @action(detail=True, methods=['delete'], url_path=r'comments/(?P<comment_id>[^/.]+)', permission_classes=[AllowAny]) 
+    def delete_comments(self, request,  pk=None, comment_id=None):
+        """
+        DELETE /api/tasks/{task_id}/comments/{comment_id}/
+        """
+        if not request.user or not request.user.is_authenticated:
+            return Response(
+                {"detail": "401: Nicht autorisiert. Der Benutzer muss eingeloggt sein."},
+                status=status.HTTP_401_UNAUTHORIZED
+            )
+        
+        try:
+            task = Task.objects.get(pk=pk)
+        except Task.DoesNotExist:
+            raise NotFound("404: Kommentar oder Task nicht gefunden.")
+
+        try:
+            comment = Comment.objects.get(pk=comment_id, task=task)
+            print('comment', comment)
+        except Comment.DoesNotExist:
+            raise NotFound("404: Kommentar oder Task nicht gefunden.")
+
+        if comment.author != request.user: 
+            raise PermissionDenied(
+                "403: Verboten. Nur der Ersteller des Kommentars darf ihn löschen."
+            )
+
+        comment.delete()
+        return Response("204: Der Kommentar wurde erfolgreich gelöscht.", status=status.HTTP_204_NO_CONTENT)
+
+    @action(detail=True, methods=['get','post'], url_path='comments', permission_classes=[AllowAny]) 
+    def comments(self, request,  pk=None):
+        """
+        GET /api/tasks/{task_id}/comments/  -> Liste abrufen
+        POST /api/tasks/{task_id}/comments/ -> Neuen Kommentar hinzufügen
+        """
+        if not request.user or not request.user.is_authenticated:
+            return Response(
+                {"detail": "401: Nicht autorisiert. Der Benutzer muss eingeloggt sein."},
+                status=status.HTTP_401_UNAUTHORIZED
+            )
+
+        try:
+            task = Task.objects.get(pk=pk)
+        except Task.DoesNotExist:
+            raise NotFound("404: Task nicht gefunden. Die angegebene Task-ID existiert nicht.")
+            #Response ()
+
+        board = task.board
+        allowed_users = set(board.member.all())
+        if request.user not in allowed_users and not request.user.is_superuser:
+            raise PermissionDenied(
+                "403: Verboten. Der Benutzer muss Mitglied des Boards sein, zu dem die Task gehört."
+            )
+        
+        if request.method == 'GET':
+            comments = task.comments.all().order_by('created_at')
+            serialiser = TaskCommentSerializer(comments, many=True)
+            return Response(serialiser.data, status=status.HTTP_200_OK)
+
+        if request.method == 'POST':
+            content = request.data.get('content')
+            if not content or str(content).strip() == "":
+                return Responser (
+                    {"detail": "400: Bad Request. Der Inhalt des Kommentars darf nicht leer sein."},
+                    status=status.HTTP_400_BAD_REQUEST
+                )
+            
+            if request.user and request.user.is_authenticated:
+                author = request.user
+            else:
+                return Response(
+                    {"detail":"401: Nicht autorisiert. Der Benutzer muss eingeloggt sein."},
+                    status=status.HTTP_401_UNAUTHORIZED
+                    )
+
+            new_comment = Comment.objects.create(
+                task=task,
+                author=author,
+                content=content
+            )
+            serialiser = TaskCommentSerializer(new_comment)
+            return Response(serialiser.data, status=status.HTTP_201_CREATED)
+        
+        
     @action(detail=False, methods=['get'], url_path='assigned-to-me')
     def assigned_to_me(self, request):
         """
@@ -154,7 +240,7 @@ class TasksView(mixins.ListModelMixin,
 #     queryset = User.objects.all()
 #     serializer_class = UserNestedSerializer
 
-class EmailCheck(mixins.ListModelMixin,
+class EmailCheckView(mixins.ListModelMixin,
                 viewsets.GenericViewSet
                 ):
         queryset = User.objects.all()
@@ -186,3 +272,8 @@ class EmailCheck(mixins.ListModelMixin,
             except User.DoesNotExist:
                 return Response({"error":"404: Email nicht gefunden. Die Email exestiert nicht."}, status=status.HTTP_404_NOT_FOUND ) 
             
+# class CommentsOfTaskView(mixins.ListModelMixin,
+#                 viewsets.GenericViewSet
+#                 ):
+#         queryset = Comment.objects.all()
+#         serializer_class = TaskCommentSerializer

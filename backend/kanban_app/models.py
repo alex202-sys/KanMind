@@ -41,11 +41,12 @@ class Task(models.Model):
     creator = models.ForeignKey(User, on_delete=models.SET_NULL, blank=True, null=True, related_name='created_by_tasks')
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
-    
+
     def __str__(self):
         return f"{self.title} ({self.get_status_display()})"
     
 class Comment(models.Model):
     task = models.ForeignKey(Task, on_delete=models.CASCADE, blank=True, null=True, related_name='comments')
-    text = models.TextField()
+    content = models.TextField()
     created_at = models.DateTimeField(auto_now_add=True)
+    author = models.ForeignKey(User, on_delete=models.CASCADE, blank=True, null=True)
