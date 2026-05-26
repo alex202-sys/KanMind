@@ -3,6 +3,7 @@ from django.contrib.auth import get_user_model
 from kanban_app.models import Board, Task,  TaskStatus, TaskPriority, Comment
 from django.http import Http404
 from rest_framework.exceptions import PermissionDenied, NotFound
+
 User = get_user_model()
 
 class BoardsSerializer(serializers.ModelSerializer):
@@ -73,7 +74,8 @@ class BoardsSerializer(serializers.ModelSerializer):
                     'fullname': instance.owner.get_full_name() or instance.owner.username
                 } 
         else:
-                ret['owner_id'] = None    
+                print("owner_id = None ")
+                ret['owner_id'] = None  
         return ret
 
 class UserNestedSerializer(serializers.ModelSerializer):
@@ -92,24 +94,12 @@ class TaskSerializer(serializers.ModelSerializer):
     #status = serializers.ChoiceField(choices=TaskStatus.choices,  default=TaskStatus.IN_PROGRESS)
     #priority = serializers.ChoiceField(choices=TaskPriority.choices,  default=TaskPriority.MEDIUM)
     comments_count = serializers.SerializerMethodField()
-    assignee_id=serializers.PrimaryKeyRelatedField(
-        queryset=User.objects.all(),
-        source='assignee',
-        write_only=True,
-        required=False,
-        allow_null=True 
-    )
-    reviewer_id=serializers.PrimaryKeyRelatedField(
-        queryset=User.objects.all(),
-        source='reviewer',
-        write_only=True,
-        required=False,
-        allow_null=True 
-    )
-
+    assignee_id=serializers.PrimaryKeyRelatedField(queryset=User.objects.all(), source='assignee', write_only=True, required=False, allow_null=True)
+    reviewer_id=serializers.PrimaryKeyRelatedField(queryset=User.objects.all(), source='reviewer', write_only=True, required=False, allow_null=True)
     assignee = UserNestedSerializer(read_only=True, allow_null=True)
     reviewer = UserNestedSerializer(read_only=True, allow_null=True)
-
+    creator = UserNestedSerializer(read_only=True, allow_null=True)
+    board = serializers.PrimaryKeyRelatedField(queryset=Board.objects.all())
     # Hier überschreiben wir das Feld, um die Fehlermeldungen anzupassen:
     # board = serializers.PrimaryKeyRelatedField(
     #     queryset=Board.objects.all(),
@@ -119,7 +109,7 @@ class TaskSerializer(serializers.ModelSerializer):
     #         'null': 'Ein Task muss einem Board zugewiesen sein.'
     #     }
     # )
-    board = serializers.PrimaryKeyRelatedField(queryset=Board.objects.all())
+    
     class Meta:
         model = Task
         fields = [
@@ -134,9 +124,13 @@ class TaskSerializer(serializers.ModelSerializer):
             'reviewer',
             'reviewer_id',
             'due_date',
-            'comments_count'
+            'comments_count',
+            'creator',
+            'created_at',
+            'updated_at'
         ]
-    
+        read_only_fields = ['creator', 'created_at', 'updated_at']
+
     def to_internal_value(self, data):
         try:
             # Versucht die Standard-Validierung (prüft ob Board-ID existiert)
@@ -220,6 +214,29 @@ class TaskSerializer(serializers.ModelSerializer):
             )  
         
         return attrs  
+    
+    def to_representation(self, instance):
+    # Basis-Daten generieren
+        print("Task instance",instance)
+        ret = super().to_representation(instance)
+        request = self.context.get('request')
+        if request and request.user: 
+            if not request.user.is_superuser and request.method=='PATCH':
+                    # Wenn Superuser: Ersetze die ID-Liste mit detaillierten Objekten
+                    ret.pop('board', None)
+                    ret.pop('comments_count', None)
+
+            if not request.user.is_superuser:
+                    ret.pop('creator', None)
+                    ret.pop('created_at', None)
+                    ret.pop('updated_at', None)         
+        
+        return ret
+
+
+
+
+
 class CommentSerializer(serializers.ModelSerializer):
     class Meta:
         model = Comment

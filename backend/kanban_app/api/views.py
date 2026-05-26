@@ -1,11 +1,15 @@
-from .serializers import BoardsSerializer, TaskSerializer
+from .serializers import BoardsSerializer, TaskSerializer, UserNestedSerializer
 from kanban_app.models import Board, Task
 from rest_framework import permissions, generics, mixins, viewsets
 #from .permissions import isOwnerOrMitglied
 from rest_framework.permissions import IsAuthenticatedOrReadOnly, IsAuthenticated
 from rest_framework.decorators import action
 from rest_framework.response import Response
+from rest_framework.exceptions import PermissionDenied
+from rest_framework import status
+from django.contrib.auth.models import User
 from django.db.models import Q
+from rest_framework.status import HTTP_201_CREATED, HTTP_400_BAD_REQUEST, HTTP_500_INTERNAL_SERVER_ERROR, HTTP_404_NOT_FOUND, HTTP_401_UNAUTHORIZED
 
 
 #class BoardListView(generics.ListCreateAPIView):
@@ -19,6 +23,17 @@ class BoardListView(mixins.ListModelMixin,
     queryset = Board.objects.all()
     serializer_class = BoardsSerializer
     #permission_class = [isOwnerOrMitglied]
+
+    def perform_update(self, serializer):
+        # Speichert die neue owner des Boards für admin
+        user = self.request.user
+        # owner = self.request.owner
+        # instance = self.get_object()
+        if user.is_superuser and 'owner' in self.request.data:
+            new_owner_id = self.request.data.get('owner')
+            serializer.save(owner_id=new_owner_id)
+        else:
+            serializer.save()
 
     def get_permissions(self):
         if self.request.method in permissions.SAFE_METHODS:
@@ -62,6 +77,10 @@ class TasksView(mixins.ListModelMixin,
     #permission_classes = [IsAuthenticatedOrReadOnly]
     permission_classes = [IsAuthenticated]
     
+    def perform_create(self, serializer):
+        # Speichert die neue Task und setzt automatisch den angemeldeten User als Creator
+        serializer.save(creator=self.request.user)
+
     @action(detail=False, methods=['get'], url_path='assigned-to-me')
     def assigned_to_me(self, request):
         """
@@ -103,7 +122,7 @@ class TasksView(mixins.ListModelMixin,
         if user.is_superuser:
             return Task.objects.all()
         return Task.objects.filter(
-            Q(board_member=user) | Q(board_owner=user)
+            Q(board__member=user) | Q(board__owner=user)
         ).distinct()
     
     def destroy(self, request, *args, **kwargs):
@@ -118,6 +137,7 @@ class TasksView(mixins.ListModelMixin,
         # Prüfen, ob der User der Ersteller der Task ODER der Besitzer des Boards ist
         # HINWEIS: Passen Sie 'creator' an das exakte Feld in Ihrem Task-Model an (z.B. 'created_by')
         is_task_creator = getattr(instance, 'creator', None) == user
+        #is_task_creator = instance.created == user
         is_board_owner = instance.board.owner == user
 
         if not (is_task_creator or is_board_owner):
@@ -127,3 +147,42 @@ class TasksView(mixins.ListModelMixin,
 
         # Führt die dauerhafte Löschung aus (gibt HTTP 204 No Content zurück)
         return super().destroy(request, *args, **kwargs)
+    
+# class EmailCheck(mixins.ListModelMixin,
+#                 viewsets.GenericViewSet
+#                 ):
+#     queryset = User.objects.all()
+#     serializer_class = UserNestedSerializer
+
+class EmailCheck(mixins.ListModelMixin,
+                viewsets.GenericViewSet
+                ):
+        queryset = User.objects.all()
+        serializer_class = UserNestedSerializer
+        #permission_classes = [IsAuthenticated]
+
+        def list(self, request, *args, **kwargs):
+            email = request.query_params.get('email')
+
+            if not request or not request.user.is_authenticated:
+                print('not request:', request,' or request.user: ', request.user)
+                return Response(
+                    {"error": "401: Nicht autorisiert. Der Benutzer muss eingeloggt sein."},
+                    status=status.HTTP_401_UNAUTHORIZED
+                )
+
+            if not email:
+                return Response(
+                    {"error": "400: Ungültige Anfrage. Die E-Mail-Adresse fehlt oder hat ein falsches Format."},
+                    status=status.HTTP_400_BAD_REQUEST
+                )
+
+            try:
+                user_obj = User.objects.get(email=email)
+                print('user_obj :', user_obj)
+                serializer = self.get_serializer(user_obj)
+                return Response(serializer.data, status=status.HTTP_200_OK) 
+        
+            except User.DoesNotExist:
+                return Response({"error":"404: Email nicht gefunden. Die Email exestiert nicht."}, status=status.HTTP_404_NOT_FOUND ) 
+            

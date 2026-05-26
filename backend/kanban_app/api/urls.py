@@ -1,5 +1,5 @@
 from django.urls import path
-from kanban_app.api.views import BoardListView, TasksView
+from kanban_app.api.views import BoardListView, TasksView, EmailCheck
 #, BoardDetailView, EmailCheckView, TaskListView  # Importiere deine Views
 from django.urls import include
 from rest_framework import routers
@@ -7,6 +7,7 @@ from rest_framework import routers
 router = routers.SimpleRouter()
 router.register(r'boards', BoardListView)
 router.register(r'tasks', TasksView)
+router.register(r'email-check', EmailCheck, basename='email-check')
 
 urlpatterns = [
     #path('boards/', BoardListView.as_view(), name='board-list'),
