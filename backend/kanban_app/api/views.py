@@ -1,16 +1,16 @@
+from django.contrib.auth.models import User
+from django.db.models import Q
+from rest_framework import status
 from rest_framework import mixins, viewsets
 from rest_framework.permissions import IsAuthenticatedOrReadOnly, IsAuthenticated, AllowAny
 from rest_framework.decorators import action
 from rest_framework.response import Response
 from rest_framework.exceptions import PermissionDenied, NotFound, ValidationError
-from rest_framework import status
-from django.contrib.auth.models import User
-from django.db.models import Q
 from rest_framework.status import HTTP_201_CREATED, HTTP_400_BAD_REQUEST, HTTP_500_INTERNAL_SERVER_ERROR, HTTP_404_NOT_FOUND, HTTP_401_UNAUTHORIZED
-import logging
 from rest_framework.views import exception_handler
 from .serializers import BoardsSerializer, TaskSerializer, UserNestedSerializer, TaskCommentSerializer
 from kanban_app.models import Board, Task, Comment
+import logging
 
 logger = logging.getLogger(__name__)
 

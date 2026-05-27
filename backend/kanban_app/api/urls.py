@@ -1,7 +1,7 @@
 from django.urls import path
-from kanban_app.api.views import BoardListView, TasksView, EmailCheckView
 from django.urls import include
 from rest_framework import routers
+from kanban_app.api.views import BoardListView, TasksView, EmailCheckView
 
 router = routers.SimpleRouter()
 router.register(r'boards', BoardListView)

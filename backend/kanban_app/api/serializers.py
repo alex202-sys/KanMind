@@ -1,11 +1,10 @@
 from rest_framework import serializers
-from django.contrib.auth import get_user_model
-from kanban_app.models import Board, Task,  TaskStatus, TaskPriority, Comment
-from django.http import Http404
 from rest_framework.exceptions import PermissionDenied, NotFound, ValidationError
+from django.contrib.auth import get_user_model
+from django.http import Http404
+from kanban_app.models import Board, Task,  TaskStatus, TaskPriority, Comment
 
 User = get_user_model()
-
 class BoardsSerializer(serializers.ModelSerializer):
     member_count = serializers.SerializerMethodField()
     tasks_count = serializers.SerializerMethodField()
@@ -79,13 +78,10 @@ class BoardsSerializer(serializers.ModelSerializer):
                 for m in instance.member.all()
             ]
             ret.pop('member', None) 
-            
             ret.pop('member_count', None)
             ret.pop('tasks_count', None)
             ret.pop('tasks_to_do_count', None)
             ret.pop('tasks_high_prio_count', None)
-
-
 
             ret['tasks'] = [
                 {
@@ -127,7 +123,6 @@ class BoardsSerializer(serializers.ModelSerializer):
                 for m in instance.member.all()
             ]
             ret.pop('member', None) 
-
             ret.pop('member_count', None)
             ret.pop('tasks_count', None)
             ret.pop('tasks_to_do_count', None)
@@ -143,7 +138,6 @@ class UserNestedSerializer(serializers.ModelSerializer):
         fields = ['id', 'email', 'fullname']
 
     def get_fullname(self, obj):
-        # Kombiniert Vor- und Nachname. Falls leer, wird der Username genutzt.
         full_name = f"{obj.first_name} {obj.last_name}".strip()
         return full_name if full_name else obj.username
 
@@ -157,7 +151,6 @@ class TaskSerializer(serializers.ModelSerializer):
         })
     assignee = UserNestedSerializer(read_only=True, allow_null=True)
     reviewer = UserNestedSerializer(read_only=True, allow_null=True)
-    #creator = UserNestedSerializer(read_only=True, allow_null=True)
     creator = serializers.PrimaryKeyRelatedField(queryset=User.objects.all(), required=False)
 
     board = serializers.PrimaryKeyRelatedField(queryset=Board.objects.all(), error_messages={
@@ -186,15 +179,9 @@ class TaskSerializer(serializers.ModelSerializer):
         read_only_fields = ['creator', 'created_at', 'updated_at']
 
     def update(self, instance, validated_data):
-        """
-        Garantiert, dass assignee_id und reviewer_id bei einem PATCH-Request
-        korrekt aus den validierten Daten ausgelesen und in der DB aktualisiert werden.
-        """
-        # Falls assignee_id übergeben wurde (durch source='assignee' ist es in validated_data als 'assignee' benannt)
         if 'assignee' in validated_data:
             instance.assignee = validated_data.get('assignee')
             
-        # Falls reviewer_id übergeben wurde
         if 'reviewer' in validated_data:
             instance.reviewer = validated_data.get('reviewer')
             
@@ -285,26 +272,19 @@ class TaskSerializer(serializers.ModelSerializer):
         if 'creator' in attrs:
             new_creator = attrs.get('creator')
 
-            # Sicherheitsprüfung: Nur Admins (Superuser) dürfen den Creator überhaupt ändern
             if request and request.user and not request.user.is_superuser:
                 raise PermissionDenied("403: Verboten. Nur Admins dürfen den Creator ändern.")
 
-            # Prüfung: Ist der neue Creator ein Mitglied des Boards?
             if board:
                 allowed_users = set(board.member.all())
                 if board.owner:
                     allowed_users.add(board.owner)
 
-                # Wenn der ausgewählte User (ID 4) nicht im Board ist -> Fehler 400
                 if new_creator not in allowed_users:
                     raise ValidationError(
                         {"creator": "400: Ungültige Anfragedaten. Der neue Creator muss ein Mitglied oder Besitzerdieses Boards sein."}
                     )
 
-
-
-
-        
         return attrs  
     
     def to_representation(self, instance):
@@ -325,7 +305,6 @@ class TaskSerializer(serializers.ModelSerializer):
 
 class TaskCommentSerializer(serializers.ModelSerializer):
     author = serializers.SerializerMethodField()
-
     class Meta:
         model = Comment
         fields = ['id', 'created_at', 'author', 'content']
