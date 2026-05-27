@@ -2,7 +2,7 @@ from rest_framework import serializers
 from django.contrib.auth import get_user_model
 from kanban_app.models import Board, Task,  TaskStatus, TaskPriority, Comment
 from django.http import Http404
-from rest_framework.exceptions import PermissionDenied, NotFound
+from rest_framework.exceptions import PermissionDenied, NotFound, ValidationError
 
 User = get_user_model()
 
@@ -148,25 +148,21 @@ class UserNestedSerializer(serializers.ModelSerializer):
         return full_name if full_name else obj.username
 
 class TaskSerializer(serializers.ModelSerializer):
-    # oder fields = '__all__' oder hier andere definieren 
-    #status = serializers.ChoiceField(choices=TaskStatus.choices,  default=TaskStatus.IN_PROGRESS)
-    #priority = serializers.ChoiceField(choices=TaskPriority.choices,  default=TaskPriority.MEDIUM)
     comments_count = serializers.SerializerMethodField()
-    assignee_id=serializers.PrimaryKeyRelatedField(queryset=User.objects.all(), source='assignee', write_only=True, required=False, allow_null=True)
-    reviewer_id=serializers.PrimaryKeyRelatedField(queryset=User.objects.all(), source='reviewer', write_only=True, required=False, allow_null=True)
+    assignee_id=serializers.PrimaryKeyRelatedField(queryset=User.objects.all(), source='assignee', write_only=True, required=False, allow_null=True, error_messages={
+            'does_not_exist': '400: Ungültige Anfragedaten. Möglicherweise fehlen erforderliche Felder oder enthalten ungültige Werte.'
+        })
+    reviewer_id=serializers.PrimaryKeyRelatedField(queryset=User.objects.all(), source='reviewer', write_only=True, required=False, allow_null=True, error_messages={
+            'does_not_exist': '400: Ungültige Anfragedaten. Möglicherweise fehlen erforderliche Felder oder enthalten ungültige Werte.'
+        })
     assignee = UserNestedSerializer(read_only=True, allow_null=True)
     reviewer = UserNestedSerializer(read_only=True, allow_null=True)
-    creator = UserNestedSerializer(read_only=True, allow_null=True)
-    board = serializers.PrimaryKeyRelatedField(queryset=Board.objects.all())
-    # Hier überschreiben wir das Feld, um die Fehlermeldungen anzupassen:
-    # board = serializers.PrimaryKeyRelatedField(
-    #     queryset=Board.objects.all(),
-    #     error_messages={
-    #         'does_not_exist': '404: Board nicht gefunden. Die angegebene Board-ID existiert nicht.',
-    #         'incorrect_type': 'Die Board-ID muss eine gültige Zahl sein.',
-    #         'null': 'Ein Task muss einem Board zugewiesen sein.'
-    #     }
-    # )
+    #creator = UserNestedSerializer(read_only=True, allow_null=True)
+    creator = serializers.PrimaryKeyRelatedField(queryset=User.objects.all(), required=False)
+
+    board = serializers.PrimaryKeyRelatedField(queryset=Board.objects.all(), error_messages={
+            'does_not_exist': '404: Board nicht gefunden. Die angegebene Board-ID existiert nicht.'
+        })
     
     class Meta:
         model = Task
@@ -189,25 +185,50 @@ class TaskSerializer(serializers.ModelSerializer):
         ]
         read_only_fields = ['creator', 'created_at', 'updated_at']
 
+    def update(self, instance, validated_data):
+        """
+        Garantiert, dass assignee_id und reviewer_id bei einem PATCH-Request
+        korrekt aus den validierten Daten ausgelesen und in der DB aktualisiert werden.
+        """
+        # Falls assignee_id übergeben wurde (durch source='assignee' ist es in validated_data als 'assignee' benannt)
+        if 'assignee' in validated_data:
+            instance.assignee = validated_data.get('assignee')
+            
+        # Falls reviewer_id übergeben wurde
+        if 'reviewer' in validated_data:
+            instance.reviewer = validated_data.get('reviewer')
+            
+        print("Creator in validated_data:", validated_data.get('creator'))
+        request=self.context.get('request')
+        if 'creator' in validated_data:
+            if request.user and request.user.is_superuser:
+                instance.creator = validated_data.get('creator')
+
+
+        # Alle anderen Standardfelder (title, description, status, etc.) aktualisieren
+        for attr, value in validated_data.items():
+            if attr not in ['assignee', 'reviewer']:
+                setattr(instance, attr, value)
+
+        # Änderungen in der Datenbank speichern
+        instance.save()
+        return instance
+
+
     def to_internal_value(self, data):
         try:
-            # Versucht die Standard-Validierung (prüft ob Board-ID existiert)
             return super().to_internal_value(data)
         except serializers.ValidationError as exc:
-            # Wenn der Fehler vom 'board'-Feld kommt, werfe HTTP 404
             if 'board' in exc.detail:
                 raise NotFound("404: Board nicht gefunden. Die angegebene Board-ID existiert nicht.")
             raise exc
 
-
     def get_reviewer_id(self, obj):
-        # Wenn ein owner existiert, gib seine ID zurück, andernfalls die 0
         if obj.reviewer:
             return obj.reviewer.id
         return None 
     
     def get_assignee_id(self, obj):
-        # Wenn ein owner existiert, gib seine ID zurück, andernfalls die 0
         if obj.assignee:
             return obj.assignee.id
         return None 
@@ -230,25 +251,14 @@ class TaskSerializer(serializers.ModelSerializer):
                 )
 
         board = attrs.get('board')
-        print("def validate board: ",board)
-        print("def self.instance: ",self.instance)
         if not board and self.instance:
             board = self.instance.board
 
         if not board:
-            # raise serializers.ValidationError({"board": "404: Board nicht gefunden. Die angegebene Board-ID existiert nicht."})
            raise Http404("404: Board nicht gefunden. Die angegebene Board-ID existiert nicht.")
 
         allowed_users = set(board.member.all())
-        # Permissions required: Der Benutzer muss Mitglied des Boards sein, um eine Task zu erstellen.
-        # if board.owner:
-        #     allowed_users.add(board.owner)
-        #print("current_user: ",current_user, " allowed_users: ",allowed_users)
         if current_user not in allowed_users and not current_user.is_superuser:
-            # raise serializers.ValidationError({
-            #     "detail": "403: Verboten. Der Benutzer muss Mitglied des Boards sein, um eine Task zu erstellen"
-            # })
-            # Dynamischer Text je nachdem, ob es ein PATCH (Update) oder POST (Erstellung) ist
             action_text = "bearbeiten" if self.instance else "erstellen"
             if action_text == "bearbeiten":
                 raise PermissionDenied(
@@ -262,25 +272,47 @@ class TaskSerializer(serializers.ModelSerializer):
         new_assignee = attrs.get('assignee')
         if new_assignee and new_assignee not in allowed_users:
             raise serializers.ValidationError(
-                {"assignee_id": "Der zugewiesene Benutzer (Assignee) muss ein Mitglied dieses Boards sein."}
+                {"assignee_id": "400: Ungültige Anfragedaten. Möglicherweise fehlen erforderliche Felder oder enthalten ungültige Werte."}
             )   
         
         new_reviewer = attrs.get('reviewer')
         if new_reviewer and new_reviewer not in allowed_users:
             raise serializers.ValidationError(
-                {"reviewer_id": "Der zugewiesene Benutzer (reviewer) muss ein Mitglied dieses Boards sein."}
+                {"reviewer_id": "400: Ungültige Anfragedaten. Möglicherweise fehlen erforderliche Felder oder enthalten ungültige Werte."}
             )  
+        
+
+        if 'creator' in attrs:
+            new_creator = attrs.get('creator')
+
+            # Sicherheitsprüfung: Nur Admins (Superuser) dürfen den Creator überhaupt ändern
+            if request and request.user and not request.user.is_superuser:
+                raise PermissionDenied("403: Verboten. Nur Admins dürfen den Creator ändern.")
+
+            # Prüfung: Ist der neue Creator ein Mitglied des Boards?
+            if board:
+                allowed_users = set(board.member.all())
+                if board.owner:
+                    allowed_users.add(board.owner)
+
+                # Wenn der ausgewählte User (ID 4) nicht im Board ist -> Fehler 400
+                if new_creator not in allowed_users:
+                    raise ValidationError(
+                        {"creator": "400: Ungültige Anfragedaten. Der neue Creator muss ein Mitglied oder Besitzerdieses Boards sein."}
+                    )
+
+
+
+
         
         return attrs  
     
     def to_representation(self, instance):
-    # Basis-Daten generieren
         print("Task instance",instance)
         ret = super().to_representation(instance)
         request = self.context.get('request')
         if request and request.user: 
             if not request.user.is_superuser and request.method=='PATCH':
-                    # Wenn Superuser: Ersetze die ID-Liste mit detaillierten Objekten
                     ret.pop('board', None)
                     ret.pop('comments_count', None)
 
@@ -290,10 +322,6 @@ class TaskSerializer(serializers.ModelSerializer):
                     ret.pop('updated_at', None)         
         
         return ret
-
-
-
-
 
 class TaskCommentSerializer(serializers.ModelSerializer):
     author = serializers.SerializerMethodField()
