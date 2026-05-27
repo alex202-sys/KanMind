@@ -16,23 +16,18 @@ from rest_framework.views import exception_handler
 logger = logging.getLogger(__name__)
 
 def custom_exception_handler(exc, context):
-    # 1. DRF versucht zuerst, bekannte Fehler (400, 401, 403, 404) zu verarbeiten
     response = exception_handler(exc, context)
 
-    # 2. Wenn 'response' None ist, gab es einen unvorhergesehenen Server-Absturz (HTTP 500)
     if response is None:
-        # Fehler im Server-Log protokollieren, damit Sie ihn als Entwickler Beheben können
         logger.error(f"Unerwarteter Serverfehler: {exc}", exc_info=True)
         
-        # Ihren eigenen, maßgeschneiderten 500er-Response zurückgeben
         return Response(
-            {"detail": "500: Interner Serverfehler. Bitte versuchen Sie es später erneut."},
+            {"detail": "500: Interner Serverfehler."},
             status=status.HTTP_500_INTERNAL_SERVER_ERROR
         )
 
     return response
 
-#class BoardListView(generics.ListCreateAPIView):
 class BoardListView(mixins.ListModelMixin,
                     mixins.CreateModelMixin,
                     mixins.UpdateModelMixin,
@@ -53,9 +48,9 @@ class BoardListView(mixins.ListModelMixin,
     def perform_create(self, serializer):
         members = self.request.data.get('members', [])
         if members:
-            valid_members = User.objects.filter(id__in=members)
-
-            if valid_members.count() != len(members):
+            unique_members = list(set(members))
+            valid_members = User.objects.filter(id__in=unique_members)
+            if valid_members.count() != len(unique_members):
                 raise ValidationError("400: Ungültige Anfragedaten. Möglicherweise sind einige Benutzer-Email-Adressen ungültig.")
 
             instance = serializer.save(owner=self.request.user)
@@ -65,6 +60,23 @@ class BoardListView(mixins.ListModelMixin,
 
     def perform_update(self, serializer):
         user = self.request.user
+
+        request_data = self.request.data
+        members_data = request_data.get('members', None)
+        if members_data is not None:
+            if not isinstance(members_data, list):
+                raise ValidationError("400: Ungültige Anfragedaten. Möglicherweise sind einige Benutzer ungültig.")
+            
+            unique_members = list(set(members_data))
+
+            valid_members = User.objects.filter(id__in=unique_members)
+            if valid_members.count() != len(unique_members):
+                raise ValidationError("400: Ungültige Anfragedaten. Möglicherweise sind einige Benutzer ungültig")
+            
+            board_instance = serializer.save()
+            board_instance.member.set(valid_members)
+
+
 
         if user.is_superuser and 'owner' in self.request.data:
             new_owner_id = self.request.data.get('owner')

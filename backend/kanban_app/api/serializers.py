@@ -44,7 +44,14 @@ class BoardsSerializer(serializers.ModelSerializer):
     def to_representation(self, instance):
         ret = super().to_representation(instance)
         request = self.context.get('request')
-        
+        view = self.context.get('view')
+
+
+        if not instance.owner:
+            ret['owner_id'] = None 
+        else:
+            ret['owner_id'] = instance.owner.id
+
         if request and request.user and request.user.is_superuser:
             ret['member'] = [
                 {
@@ -55,14 +62,78 @@ class BoardsSerializer(serializers.ModelSerializer):
                 for m in instance.member.all()
             ]
 
-        if not instance.owner:
-            ret['owner_id'] = None 
-        elif request and request.user and request.user.is_superuser:
-            ret['owner_id'] = {
-                    'id': instance.owner.id, 
-                    'username': instance.owner.username,
-                    'fullname': instance.owner.get_full_name() or instance.owner.username
-                } 
+            if instance.owner:
+                ret['owner_id'] = {
+                        'id': instance.owner.id, 
+                        'username': instance.owner.username,
+                        'fullname': instance.owner.get_full_name() or instance.owner.username
+                    } 
+            
+        if request and view and request.method == 'GET' and view.action == 'retrieve':
+            ret['members'] = [
+                {
+                    'id': m.id,
+                    'email': getattr(m, 'email', ''),
+                    'fullname': m.get_full_name() or m.username
+                }
+                for m in instance.member.all()
+            ]
+            ret.pop('member', None) 
+            
+            ret.pop('member_count', None)
+            ret.pop('tasks_count', None)
+            ret.pop('tasks_to_do_count', None)
+            ret.pop('tasks_high_prio_count', None)
+
+
+
+            ret['tasks'] = [
+                {
+                    'id': t.id,
+                    'title': t.title,
+                    'description': t.description,
+                    'status': t.status,
+                    'priority': t.priority,
+                    'assignee': {
+                        'id': t.assignee.id,
+                        'email': getattr(t.assignee, 'email', ''),
+                        'fullname': t.assignee.get_full_name() or t.assignee.username
+                    } if t.assignee else None,
+                    'reviewer': {
+                        'id': t.reviewer.id,
+                        'email': getattr(t.reviewer, 'email', ''),
+                        'fullname': t.reviewer.get_full_name() or t.reviewer.username
+                    } if t.reviewer else None,
+                    'due_date': str(t.due_date) if t.due_date else None,
+                    'comments_count': t.comments.count() if hasattr(t, 'comments') else t.comment_set.count()
+                }
+                for t in instance.tasks.all() 
+            ]    
+
+        if request and view and request.method == 'PATCH' and view.action == 'partial_update':
+            if instance.owner:
+                ret['owner_data'] = {
+                        'id': instance.owner.id, 
+                        'email': instance.owner.email,
+                        'fullname': instance.owner.get_full_name() or instance.owner.username
+                    } 
+            
+            ret['members_data'] = [
+                {
+                    'id': m.id,
+                    'email': getattr(m, 'email', ''),
+                    'fullname': m.get_full_name() or m.username
+                }
+                for m in instance.member.all()
+            ]
+            ret.pop('member', None) 
+
+            ret.pop('member_count', None)
+            ret.pop('tasks_count', None)
+            ret.pop('tasks_to_do_count', None)
+            ret.pop('tasks_high_prio_count', None)
+            ret.pop('owner_id', None)
+
         return ret
 
 class UserNestedSerializer(serializers.ModelSerializer):
