@@ -10,7 +10,7 @@ class Board(models.Model):
 
     def __str__(self):
         return self.title
-        return f"{self.id} {self.title} ({self.get_member_display()})"
+        #return f"{self.id} {self.title} ({self.get_member_display()})"
 
 class TaskStatus(models.TextChoices):
     IN_PROGRESS = 'in-progress', 'In Progress'
@@ -23,10 +23,6 @@ class TaskPriority(models.TextChoices):
     HIGH = 'high', 'High'
     MEDIUM = 'medium', 'Medium'
     LOW = 'low', 'Low' 
-    # Holt alle Tickets, die fertig sind
-    #finished_tickets = Ticket.objects.filter(status=Ticket.Status.ENDED)
-    # ticket.status = Ticket.Status.IN_PROGRESS
-    # ticket.save()
 
 
 class Task(models.Model):

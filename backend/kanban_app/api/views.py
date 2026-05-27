@@ -22,13 +22,10 @@ class BoardListView(mixins.ListModelMixin,
     
     queryset = Board.objects.all()
     serializer_class = BoardsSerializer
-    #permission_class = [isOwnerOrMitglied]
 
     def perform_update(self, serializer):
-        # Speichert die neue owner des Boards für admin
         user = self.request.user
-        # owner = self.request.owner
-        # instance = self.get_object()
+
         if user.is_superuser and 'owner' in self.request.data:
             new_owner_id = self.request.data.get('owner')
             serializer.save(owner_id=new_owner_id)
@@ -42,22 +39,13 @@ class BoardListView(mixins.ListModelMixin,
     
     def get_queryset(self):
         user = self.request.user
-        
-        for board in Board.objects.all():
-            print(f"Board: {board.title} | Owner: {board.owner} | Members: {list(board.member.all())}")
-        # print(f"Aktuell angemeldeter User {user} im Request with id: {user.id}")
-        # print("Filter: ", Board.objects.filter(owner='2'))
-        print("Ob user staff ist", user, "  ", user.is_staff)
-        if  not user.is_staff:
+
+        if  not user.is_superuser:
             return Board.objects.filter(
                 Q(owner=user) | Q(member=user)
             ).distinct()
         else:
             return Board.objects.all()
-    
-    #anzahl = Employee.objects.filter(salary__gte=5000).count()
-		# print(anzahl) 
-        
 
 class TasksView(mixins.ListModelMixin,
                 mixins.CreateModelMixin,
