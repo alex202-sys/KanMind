@@ -5,12 +5,32 @@ from rest_framework import permissions, generics, mixins, viewsets
 from rest_framework.permissions import IsAuthenticatedOrReadOnly, IsAuthenticated, AllowAny
 from rest_framework.decorators import action
 from rest_framework.response import Response
-from rest_framework.exceptions import PermissionDenied, NotFound
+from rest_framework.exceptions import PermissionDenied, NotFound, ValidationError
 from rest_framework import status
 from django.contrib.auth.models import User
 from django.db.models import Q
 from rest_framework.status import HTTP_201_CREATED, HTTP_400_BAD_REQUEST, HTTP_500_INTERNAL_SERVER_ERROR, HTTP_404_NOT_FOUND, HTTP_401_UNAUTHORIZED
+import logging
+from rest_framework.views import exception_handler
 
+logger = logging.getLogger(__name__)
+
+def custom_exception_handler(exc, context):
+    # 1. DRF versucht zuerst, bekannte Fehler (400, 401, 403, 404) zu verarbeiten
+    response = exception_handler(exc, context)
+
+    # 2. Wenn 'response' None ist, gab es einen unvorhergesehenen Server-Absturz (HTTP 500)
+    if response is None:
+        # Fehler im Server-Log protokollieren, damit Sie ihn als Entwickler Beheben können
+        logger.error(f"Unerwarteter Serverfehler: {exc}", exc_info=True)
+        
+        # Ihren eigenen, maßgeschneiderten 500er-Response zurückgeben
+        return Response(
+            {"detail": "500: Interner Serverfehler. Bitte versuchen Sie es später erneut."},
+            status=status.HTTP_500_INTERNAL_SERVER_ERROR
+        )
+
+    return response
 
 #class BoardListView(generics.ListCreateAPIView):
 class BoardListView(mixins.ListModelMixin,
@@ -23,6 +43,26 @@ class BoardListView(mixins.ListModelMixin,
     queryset = Board.objects.all()
     serializer_class = BoardsSerializer
 
+    def initial(self, request, *args, **kwargs):
+        super().initial(request, *args, **kwargs)
+        
+        if not request.user or not request.user.is_authenticated:
+            from rest_framework.exceptions import NotAuthenticated
+            raise NotAuthenticated("401: Nicht autorisiert. Der Benutzer muss eingeloggt sein.")
+
+    def perform_create(self, serializer):
+        members = self.request.data.get('members', [])
+        if members:
+            valid_members = User.objects.filter(id__in=members)
+
+            if valid_members.count() != len(members):
+                raise ValidationError("400: Ungültige Anfragedaten. Möglicherweise sind einige Benutzer-Email-Adressen ungültig.")
+
+            instance = serializer.save(owner=self.request.user)
+            instance.member.set(valid_members)  
+        else:
+            instance = serializer.save(owner=self.request.user)
+
     def perform_update(self, serializer):
         user = self.request.user
 
@@ -31,11 +71,6 @@ class BoardListView(mixins.ListModelMixin,
             serializer.save(owner_id=new_owner_id)
         else:
             serializer.save()
-
-    def get_permissions(self):
-        if self.request.method in permissions.SAFE_METHODS:
-            return [permissions.IsAuthenticated()] # oder IsAuthenticated(),AllowAny  falls eingeloggt Pflicht ist
-        return [permissions.IsAdminUser()] # IsAdminUser
     
     def get_queryset(self):
         user = self.request.user
@@ -46,6 +81,32 @@ class BoardListView(mixins.ListModelMixin,
             ).distinct()
         else:
             return Board.objects.all()
+        
+    def retrieve(self, request, *args, **kwargs):
+        if not request.user or not request.user.is_authenticated:
+            return Response(
+                {"detail": "401: Nicht autorisiert. Der Benutzer muss eingeloggt sein."},
+                status=status.HTTP_401_UNAUTHORIZED
+            )
+
+        pk = kwargs.get('pk')
+        try:
+            board = Board.objects.get(pk=pk)
+        except Board.DoesNotExist:
+            raise NotFound("404: Board nicht gefunden. Die angegebene Board-ID existiert nicht.")
+
+        if not request.user.is_superuser:
+            is_owner = (board.owner == request.user)
+            is_member = board.member.filter(id=request.user.id).exists()
+            
+            if not is_owner and not is_member:
+                raise PermissionDenied(
+                    "403: Verboten. Der Benutzer muss entweder Mitglied des Boards oder der Eigentümer des Boards sein."
+                )
+
+        serializer = self.get_serializer(board)
+        return Response(serializer.data, status=status.HTTP_200_OK)
+  
 
 class TasksView(mixins.ListModelMixin,
                 mixins.CreateModelMixin,
