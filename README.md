@@ -4,7 +4,7 @@ KanMind is a robust, production-ready RESTful API built with Django and Django R
 
 ---
 
-## 🚀 Key Features & Architectural Highlights
+## Key Features & Architectural Highlights
 
 - **Custom Email Authentication:** Users can log in directly using their `email` and `password`. The API dynamically handles username lookups under the hood.
 - **Dynamic Profile Creation:** A `UserProfile` is automatically spawned upon a successful registration hook.
