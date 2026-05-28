@@ -1,6 +1,6 @@
-from django.db import models
 from django.contrib.auth.models import User
 from django.db import models
+
 
 # Create your models here.
 class Board(models.Model):
@@ -10,15 +10,12 @@ class Board(models.Model):
 
     def __str__(self):
         return self.title
-        #return f"{self.id} {self.title} ({self.get_member_display()})"
-
 class TaskStatus(models.TextChoices):
     IN_PROGRESS = 'in-progress', 'In Progress'
     TODO = 'to-do', 'To-Do'
     DONE = 'done', 'Done' 
     REVIEW = 'review', 'Review' 
      
-
 class TaskPriority(models.TextChoices):
     HIGH = 'high', 'High'
     MEDIUM = 'medium', 'Medium'
