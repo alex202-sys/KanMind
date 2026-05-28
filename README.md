@@ -117,8 +117,9 @@ Follow these steps to run this project locally:
    Bash
 
    ```
-   git clone [https://github.com/alex202-sys/KanMind.git](https://github.com/alex202-sys/KanMind.git)
-   cd KanMind/backend
+   cd KanMind # Ordner vom Hauptproekt
+   git clone https://github.com/alex202-sys/KanMind.git
+   cd backend
    ```
 
 2. **Initialize the Python Virtual Environment:**
@@ -160,8 +161,8 @@ Follow these steps to run this project locally:
    Bash
 
    ```
-   python manage.py makemigrations
    python manage.py migrate
    python manage.py runserver
    ```
-   The local service endpoint will spawn cleanly on **`http://127.0.0.1:8000/`**.
+   The local service endpoint will spawn cleanly on http://127.0.0.1:8000/api/
+
