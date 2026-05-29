@@ -118,7 +118,7 @@ Follow these steps to run this project locally:
 
    ```
    cd KanMind # Ordner vom Hauptproekt
-   git clone https://github.com/alex202-sys/KanMind.git
+   git clone https://github.com/alex202-sys/KanMind.git .
    cd backend
    ```
 
