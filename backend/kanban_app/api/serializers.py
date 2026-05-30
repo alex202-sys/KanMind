@@ -272,12 +272,10 @@ class TaskSerializer(serializers.ModelSerializer):
             if request.user and request.user.is_superuser:
                 instance.creator = validated_data.get("creator")
 
-        # Alle anderen Standardfelder (title, description, status, etc.) aktualisieren
         for attr, value in validated_data.items():
             if attr not in ["assignee", "reviewer"]:
                 setattr(instance, attr, value)
 
-        # Änderungen in der Datenbank speichern
         instance.save()
         return instance
 

@@ -1,9 +1,5 @@
-# api/views.py
 from django.contrib.auth.models import User
 from rest_framework import generics, status, permissions
-
-# from rest_framework.views import APIView
-# from rest_framework.permissions import AllowAny
 from rest_framework.authtoken.models import Token
 from rest_framework.response import Response
 from rest_framework.authtoken.views import ObtainAuthToken
@@ -59,6 +55,15 @@ class UserProfileDetail(generics.RetrieveUpdateDestroyAPIView):
 
 
 class RegistrationView(generics.CreateAPIView):
+    """_summary_
+
+    Args:
+        generics (_type_): _description_
+
+    Returns:
+        _type_: _description_
+    """
+
     serializer_class = RegistrationSerializer
 
     def post(self, request, *args, **kwargs):

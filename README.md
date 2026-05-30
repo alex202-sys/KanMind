@@ -42,12 +42,7 @@ KanMind/
  ├── serializers.py
  ├── views.py
  └── urls.py
-
-
- 
 ```
-
-
 
 ## Data Models Relationship
 
@@ -86,8 +81,6 @@ Operational working entities mapped into Kanban status pipelines.
 - **author:** `ForeignKey` tracking comment writers.
 - **content:** `TextField` keeping conversational thread tracking logs.
 
-
-
 ## API Endpoint Specifications
 
 All data inputs and outputs use `application/json` payloads.
@@ -113,19 +106,19 @@ All data inputs and outputs use `application/json` payloads.
 Follow these steps to run this project locally:
 
 1. **Clone the repository:**
-
+   
    Bash
-
+   
    ```
    cd KanMind # Ordner vom Hauptproekt
-   git clone https://github.com/alex202-sys/KanMind.git .
+   git clone https://github.com/alex202-sys/KanMind.git
    cd backend
    ```
 
 2. **Initialize the Python Virtual Environment:**
-
+   
    Bash
-
+   
    ```
    python -m venv .venv
    # Activate on Windows:
@@ -133,36 +126,38 @@ Follow these steps to run this project locally:
    ```
 
 3. **Install dependencies:**
-
+   
    Bash
-
+   
    ```
    pip install -r requirements.txt
    ```
 
 4. **Environment Variables Configuration:** Copy the public configuration template and configure your local settings:
-
+   
    Bash
-
+   
    ```
    cp .env.template .env
    ```
-
+   
    Open your newly created `.env` file and define your development variables cleanly without quotes or extra spacing:
-
+   
    Plaintext
-
+   
    ```
    SECRET_KEY=your-super-secure-local-django-secret-key
    ```
 
 5. **Execute database structural migrations & start the development engine:**
-
+   
    Bash
-
+   
    ```
    python manage.py migrate
    python manage.py runserver
    ```
+   
    The local service endpoint will spawn cleanly on http://127.0.0.1:8000/api/
+
 

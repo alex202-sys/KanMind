@@ -88,7 +88,6 @@ class RegistrationSerializer(serializers.ModelSerializer):
     def save(self, **kwargs):
         try:
             fullname = self.validated_data.pop("fullname", "")
-            # Splits at the first space. If there's no space, the entire fullname is treated as the first name.
             parts = fullname.split(" ", 1)
             first_name = parts[0]
             last_name = parts[1] if len(parts) > 1 else ""
