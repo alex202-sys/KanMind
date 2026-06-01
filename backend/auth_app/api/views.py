@@ -42,7 +42,6 @@ class UserProfileDetail(generics.RetrieveUpdateDestroyAPIView):
     def get_permissions(self):
         if self.request.method in permissions.SAFE_METHODS:
             return [permissions.IsAuthenticated()]
-
         return [permissions.IsAuthenticatedOrReadOnly()]
 
     def check_object_permissions(self, request, obj):
@@ -109,7 +108,6 @@ class UserLoginView(ObtainAuthToken):
                 )
 
         serializer = self.serializer_class(data=request.data)
-
         if serializer.is_valid():
             user = serializer.validated_data["user"]
             token, created = Token.objects.get_or_create(user=user)

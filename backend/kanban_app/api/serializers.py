@@ -359,7 +359,6 @@ class TaskSerializer(serializers.ModelSerializer):
         request = self.context.get("request")
         if not request or not request.user:
             raise serializers.ValidationError({"detail": "Benutzer nicht eingeloggt."})
-        current_user = request.user
 
         if self.instance and "board" in attrs:
             if attrs["board"] != self.instance.board:
@@ -376,6 +375,7 @@ class TaskSerializer(serializers.ModelSerializer):
                 "404: Board nicht gefunden. Die angegebene Board-ID existiert nicht."
             )
 
+        current_user = request.user
         allowed_users = set(board.member.all())
         if current_user not in allowed_users and not current_user.is_superuser:
             action_text = "bearbeiten" if self.instance else "erstellen"
