@@ -18,6 +18,7 @@ class BoardsSerializer(serializers.ModelSerializer):
     Returns:
         _type_: _description_
     """
+    print("Initializing BoardsSerializer")
 
     class Meta:
         model = Board

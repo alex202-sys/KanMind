@@ -95,6 +95,47 @@ class BoardListView(
                 "401: Nicht autorisiert. Der Benutzer muss eingeloggt sein."
             )
 
+    def get_queryset(self):
+
+        user = self.request.user
+        if user.is_superuser:
+            return Board.objects.all()
+
+        return Board.objects.filter(Q(owner=user) | Q(member=user)).distinct()
+
+        # board_pk = None
+        # if self.kwargs.get("pk"):
+        #     # print("get_queryset pk:", self.kwargs.get("pk"))
+        #     # board_exist = Board.objects.filter(pk=self.kwargs.get("pk")).exists()
+        #     # board_pk = Board.objects.filter(pk=self.kwargs.get("pk"))
+        #     board_pk = Board.objects.get(pk=self.kwargs.get("pk"))
+        #     print("get_queryset board_pk:", board_pk)
+        #     # print("get_queryset board_exist:", board_pk)
+        #     if not board_pk:
+        #         raise NotFound(
+        #             "404:     Board nicht gefunden. Die angegebene Board-ID existiert nicht."
+        #         )
+        # boards_of_user = None
+        # if not user.is_superuser:
+        #     boards_of_user = Board.objects.filter(
+        #         Q(owner=user) | Q(member=user)
+        #     ).distinct()
+        #     if not boards_of_user:
+        #         raise PermissionDenied(
+        #             "403: Verboten. Der Benutzer muss entweder der Eigentümer oder ein Mitglied des Boards sein."
+        #         )
+
+        #     if board_pk:
+        #         print("get_queryset board_pk:", board_pk)
+        #         if not board_pk in boards_of_user:
+        #             print("boards_of_user:", boards_of_user)
+        #             raise PermissionDenied(
+        #                 "403: Verboten. Der Benutzer muss entweder der Eigentümer oder ein Mitglied des Boards sein."
+        #             )
+        #     return boards_of_user
+
+        # return Board.objects.all()
+
     def perform_create(self, serializer):
         members = self.request.data.get("members", [])
         if members:
@@ -109,30 +150,30 @@ class BoardListView(
         else:
             instance = serializer.save(owner=self.request.user)
 
-    def perform_destroy(self, instance):
-        user = self.request.user
-        if not user.is_superuser:
-            is_owner = instance.owner == user
-            if not is_owner:
-                raise PermissionDenied(
-                    "403: Verboten. Der Benutzer muss der Eigentümer des Boards sein, um es zu löschen."
-                )
-        instance.delete()
-        return Response(
-            None,
-            status=status.HTTP_204_NO_CONTENT,
-        )
-
     def perform_update(self, serializer):
         print("perform_update serializer", serializer)
-        user = self.request.user
+
+        # try:
+        #     boards_of_user = Board.objects.filter(
+        #         Q(owner=user) | Q(member=user)
+        #     ).distinct()
+        # except Exception as e:
+        #     # logger.error(f"Fehler beim Abrufen der Boards für Benutzer {user.id}: {e}", exc_info=True)
+        #     raise ValidationError(
+        #         {
+        #             "404: Board nicht gefunden. Die angegebene Board-ID existiert nicht.   server_error": f"Fatal error: {str(e)}"
+        #         }
+        #     )
+        current_board = serializer.instance
+        allowed_boards = self.get_queryset()
+        # if current_board not in boards_of_user:
+        if not allowed_boards.filter(id=current_board.id).exists():
+            raise PermissionDenied(
+                "403: Verboten.       Der Benutzer muss entweder der Eigentümer oder ein Mitglied des Boards sein."
+            )
+
         request_data = self.request.data
         members_data = request_data.get("members", None)
-        boards_of_user = Board.objects.filter(Q(owner=user) | Q(member=user)).distinct()
-        if serializer.instance not in boards_of_user:
-            raise PermissionDenied(
-                "403: Verboten. Der Benutzer muss entweder der Eigentümer oder ein Mitglied des Boards sein."
-            )
         if members_data is not None:
             if not isinstance(members_data, list):
                 raise ValidationError(
@@ -147,6 +188,7 @@ class BoardListView(
             board_instance = serializer.save()
             board_instance.member.set(valid_members)
 
+        user = self.request.user
         owners_data = request_data.get("owner_id", None)
         if owners_data is not None and user.is_superuser:
             valid_owner = User.objects.filter(id=owners_data)
@@ -158,14 +200,24 @@ class BoardListView(
 
         return Response(serializer.data, status=status.HTTP_200_OK)
 
-    def get_queryset(self):
+    def perform_destroy(self, instance):
         user = self.request.user
+        print("perform_destroy user:", user)
         if not user.is_superuser:
-            return Board.objects.filter(Q(owner=user) | Q(member=user)).distinct()
-        else:
-            return Board.objects.all()
+            is_owner = instance.owner == user
+            print("perform_destroy is_owner:", is_owner)
+            if not is_owner:
+                raise PermissionDenied(
+                    "403: Verboten. Der Benutzer muss der Eigentümer des Boards sein, um es zu löschen."
+                )
+        instance.delete()
+        return Response(
+            None,
+            status=status.HTTP_204_NO_CONTENT,
+        )
 
     def retrieve(self, request, *args, **kwargs):
+        print("retrieve kwargs", kwargs)
         if not request.user or not request.user.is_authenticated:
             return Response(
                 {
@@ -256,7 +308,6 @@ class TasksView(
                 )
 
         serializer.save()
-
         return super().perform_update(serializer)
 
     def destroy(self, request, *args, **kwargs):
@@ -269,7 +320,7 @@ class TasksView(
 
         user = request.user
         is_task_creator = getattr(instance, "creator", None) == user
-        is_board_owner = instance.board.owner == user
+        is_board_owner = instance.board.owner == user if instance.board else False
         if not (is_task_creator or is_board_owner or user.is_superuser):
             raise PermissionDenied(
                 "403: Verboten. Nur der Ersteller der Task oder der Eigentümer des Boards kann eine Task löschen."
