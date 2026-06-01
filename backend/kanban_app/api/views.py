@@ -103,39 +103,6 @@ class BoardListView(
 
         return Board.objects.filter(Q(owner=user) | Q(member=user)).distinct()
 
-        # board_pk = None
-        # if self.kwargs.get("pk"):
-        #     # print("get_queryset pk:", self.kwargs.get("pk"))
-        #     # board_exist = Board.objects.filter(pk=self.kwargs.get("pk")).exists()
-        #     # board_pk = Board.objects.filter(pk=self.kwargs.get("pk"))
-        #     board_pk = Board.objects.get(pk=self.kwargs.get("pk"))
-        #     print("get_queryset board_pk:", board_pk)
-        #     # print("get_queryset board_exist:", board_pk)
-        #     if not board_pk:
-        #         raise NotFound(
-        #             "404:     Board nicht gefunden. Die angegebene Board-ID existiert nicht."
-        #         )
-        # boards_of_user = None
-        # if not user.is_superuser:
-        #     boards_of_user = Board.objects.filter(
-        #         Q(owner=user) | Q(member=user)
-        #     ).distinct()
-        #     if not boards_of_user:
-        #         raise PermissionDenied(
-        #             "403: Verboten. Der Benutzer muss entweder der Eigentümer oder ein Mitglied des Boards sein."
-        #         )
-
-        #     if board_pk:
-        #         print("get_queryset board_pk:", board_pk)
-        #         if not board_pk in boards_of_user:
-        #             print("boards_of_user:", boards_of_user)
-        #             raise PermissionDenied(
-        #                 "403: Verboten. Der Benutzer muss entweder der Eigentümer oder ein Mitglied des Boards sein."
-        #             )
-        #     return boards_of_user
-
-        # return Board.objects.all()
-
     def perform_create(self, serializer):
         members = self.request.data.get("members", [])
         if members:
@@ -151,22 +118,8 @@ class BoardListView(
             instance = serializer.save(owner=self.request.user)
 
     def perform_update(self, serializer):
-        print("perform_update serializer", serializer)
-
-        # try:
-        #     boards_of_user = Board.objects.filter(
-        #         Q(owner=user) | Q(member=user)
-        #     ).distinct()
-        # except Exception as e:
-        #     # logger.error(f"Fehler beim Abrufen der Boards für Benutzer {user.id}: {e}", exc_info=True)
-        #     raise ValidationError(
-        #         {
-        #             "404: Board nicht gefunden. Die angegebene Board-ID existiert nicht.   server_error": f"Fatal error: {str(e)}"
-        #         }
-        #     )
         current_board = serializer.instance
         allowed_boards = self.get_queryset()
-        # if current_board not in boards_of_user:
         if not allowed_boards.filter(id=current_board.id).exists():
             raise PermissionDenied(
                 "403: Verboten.       Der Benutzer muss entweder der Eigentümer oder ein Mitglied des Boards sein."
@@ -202,10 +155,8 @@ class BoardListView(
 
     def perform_destroy(self, instance):
         user = self.request.user
-        print("perform_destroy user:", user)
         if not user.is_superuser:
             is_owner = instance.owner == user
-            print("perform_destroy is_owner:", is_owner)
             if not is_owner:
                 raise PermissionDenied(
                     "403: Verboten. Der Benutzer muss der Eigentümer des Boards sein, um es zu löschen."
@@ -217,7 +168,6 @@ class BoardListView(
         )
 
     def retrieve(self, request, *args, **kwargs):
-        print("retrieve kwargs", kwargs)
         if not request.user or not request.user.is_authenticated:
             return Response(
                 {
@@ -446,7 +396,6 @@ class EmailCheckView(mixins.ListModelMixin, viewsets.GenericViewSet):
         email = request.query_params.get("email")
 
         if not request or not request.user.is_authenticated:
-            print("not request:", request, " or request.user: ", request.user)
             return Response(
                 {"error": "401: Nicht autorisiert. Der Benutzer muss eingeloggt sein."},
                 status=status.HTTP_401_UNAUTHORIZED,
@@ -462,7 +411,6 @@ class EmailCheckView(mixins.ListModelMixin, viewsets.GenericViewSet):
 
         try:
             user_obj = User.objects.get(email=email)
-            print("user_obj :", user_obj)
             serializer = self.get_serializer(user_obj)
             return Response(serializer.data, status=status.HTTP_200_OK)
 

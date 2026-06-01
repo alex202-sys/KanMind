@@ -2,7 +2,6 @@ from django.contrib.auth.models import User
 from django.db import models
 
 
-# Create your models here.
 class Board(models.Model):
     title = models.CharField(max_length=155)
     owner = models.ForeignKey(
@@ -15,6 +14,12 @@ class Board(models.Model):
 
 
 class TaskStatus(models.TextChoices):
+    """_summary_
+
+    Args:
+        models (_type_): _description_
+    """
+
     IN_PROGRESS = "in-progress", "In Progress"
     TODO = "to-do", "To-Do"
     DONE = "done", "Done"
@@ -22,12 +27,27 @@ class TaskStatus(models.TextChoices):
 
 
 class TaskPriority(models.TextChoices):
+    """_summary_
+
+    Args:
+        models (_type_): _description_
+    """
+
     HIGH = "high", "High"
     MEDIUM = "medium", "Medium"
     LOW = "low", "Low"
 
 
 class Task(models.Model):
+    """_summary_
+
+    Args:
+        models (_type_): _description_
+
+    Returns:
+        _type_: _description_
+    """
+
     title = models.CharField(max_length=255)
     board = models.ForeignKey(
         Board, on_delete=models.CASCADE, blank=True, null=True, related_name="tasks"
@@ -69,6 +89,12 @@ class Task(models.Model):
 
 
 class Comment(models.Model):
+    """_summary_
+
+    Args:
+        models (_type_): _description_
+    """
+
     task = models.ForeignKey(
         Task, on_delete=models.CASCADE, blank=True, null=True, related_name="comments"
     )

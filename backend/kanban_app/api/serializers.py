@@ -8,17 +8,20 @@ User = get_user_model()
 
 
 class BoardsSerializer(serializers.ModelSerializer):
+    """_summary_
+
+    Args:
+        serializers (_type_): _description_
+
+    Returns:
+        _type_: _description_
+    """
+
     member_count = serializers.SerializerMethodField()
     ticket_count = serializers.SerializerMethodField()
     tasks_to_do_count = serializers.SerializerMethodField()
     tasks_high_prio_count = serializers.SerializerMethodField()
     owner_id = serializers.SerializerMethodField()
-    """_summary_
-
-    Returns:
-        _type_: _description_
-    """
-    print("Initializing BoardsSerializer")
 
     class Meta:
         model = Board
@@ -267,7 +270,6 @@ class TaskSerializer(serializers.ModelSerializer):
         if "reviewer" in validated_data:
             instance.reviewer = validated_data.get("reviewer")
 
-        print("Creator in validated_data:", validated_data.get("creator"))
         request = self.context.get("request")
         if "creator" in validated_data:
             if request.user and request.user.is_superuser:
@@ -377,9 +379,9 @@ class TaskSerializer(serializers.ModelSerializer):
         return attrs
 
     def to_representation(self, instance):
-        print("Task instance", instance)
         ret = super().to_representation(instance)
         request = self.context.get("request")
+
         if request and request.user:
             if not request.user.is_superuser and request.method == "PATCH":
                 ret.pop("board", None)
