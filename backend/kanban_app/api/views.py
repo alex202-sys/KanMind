@@ -37,7 +37,6 @@ def custom_exception_handler(exc, context):
         _type_: _description_
     """
     response = exception_handler(exc, context)
-
     if response is None:
         logger.error(f"Unerwarteter Serverfehler: {exc}", exc_info=True)
 
@@ -86,6 +85,14 @@ class BoardListView(
     serializer_class = BoardsSerializer
 
     def initial(self, request, *args, **kwargs):
+        """_summary_
+
+        Args:
+            request (_type_): _description_
+
+        Raises:
+            NotAuthenticated: _description_
+        """
         super().initial(request, *args, **kwargs)
 
         if not request.user or not request.user.is_authenticated:
@@ -96,7 +103,11 @@ class BoardListView(
             )
 
     def get_queryset(self):
+        """_summary_
 
+        Returns:
+            _type_: _description_
+        """
         user = self.request.user
         if user.is_superuser:
             return Board.objects.all()
@@ -104,6 +115,11 @@ class BoardListView(
         return Board.objects.filter(Q(owner=user) | Q(member=user)).distinct()
 
     def perform_create(self, serializer):
+        """_summary_
+
+        Args:
+            serializer (_type_): _description_
+        """
         members = self.request.data.get("members", [])
         if members:
             unique_members = list(set(members))
@@ -118,6 +134,11 @@ class BoardListView(
             instance = serializer.save(owner=self.request.user)
 
     def perform_update(self, serializer):
+        """_summary_
+
+        Args:
+            serializer (_type_): _description_
+        """
         current_board = serializer.instance
         allowed_boards = self.get_queryset()
         if not allowed_boards.filter(id=current_board.id).exists():
@@ -154,6 +175,11 @@ class BoardListView(
         return Response(serializer.data, status=status.HTTP_200_OK)
 
     def perform_destroy(self, instance):
+        """_summary_
+
+        Args:
+            instance (_type_): _description_
+        """
         user = self.request.user
         if not user.is_superuser:
             is_owner = instance.owner == user
@@ -168,6 +194,18 @@ class BoardListView(
         )
 
     def retrieve(self, request, *args, **kwargs):
+        """_summary_
+
+        Args:
+            request (_type_): _description_
+
+        Raises:
+            NotFound: _description_
+            PermissionDenied: _description_
+
+        Returns:
+            _type_: _description_
+        """
         if not request.user or not request.user.is_authenticated:
             return Response(
                 {
@@ -233,6 +271,11 @@ class TasksView(
     permission_classes = [IsAuthenticated]
 
     def get_queryset(self):
+        """_summary_
+
+        Returns:
+            _type_: _description_
+        """
         user = self.request.user
         if user.is_superuser:
             return Task.objects.all()
@@ -244,9 +287,19 @@ class TasksView(
         ).distinct()
 
     def perform_create(self, serializer):
+        """_summary_
+
+        Args:
+            serializer (_type_): _description_
+        """
         serializer.save(creator=self.request.user)
 
     def perform_update(self, serializer):
+        """_summary_
+
+        Args:
+            serializer (_type_): _description_
+        """
         user = self.request.user
         task_instance = serializer.instance
         board = task_instance.board
@@ -261,6 +314,18 @@ class TasksView(
         return super().perform_update(serializer)
 
     def destroy(self, request, *args, **kwargs):
+        """_summary_
+
+        Args:
+            request (_type_): _description_
+
+        Raises:
+            NotFound: _description_
+            PermissionDenied: _description_
+
+        Returns:
+            _type_: _description_
+        """
         try:
             instance = self.get_object()
         except Exception:
@@ -280,6 +345,14 @@ class TasksView(
 
     @action(detail=False, methods=["get"], url_path="assigned-to-me")
     def assigned_to_me(self, request):
+        """_summary_
+
+        Args:
+            request (_type_): _description_
+
+        Returns:
+            _type_: _description_
+        """
         user_tasks = Task.objects.filter(assignee=request.user)
         page = self.paginate_queryset(user_tasks)
         if page is not None:
@@ -290,6 +363,14 @@ class TasksView(
 
     @action(detail=False, methods=["get"], url_path="reviewing")
     def reviewing_to_me(self, request):
+        """_summary_
+
+        Args:
+            request (_type_): _description_
+
+        Returns:
+            _type_: _description_
+        """
         user_tasks = Task.objects.filter(reviewer=request.user)
         page = self.paginate_queryset(user_tasks)
         if page is not None:
@@ -305,6 +386,21 @@ class TasksView(
         permission_classes=[IsAuthenticated],
     )
     def delete_comments(self, request, pk=None, comment_id=None):
+        """_summary_
+
+        Args:
+            request (_type_): _description_
+            pk (_type_, optional): _description_. Defaults to None.
+            comment_id (_type_, optional): _description_. Defaults to None.
+
+        Raises:
+            NotFound: _description_
+            NotFound: _description_
+            PermissionDenied: _description_
+
+        Returns:
+            _type_: _description_
+        """
         if not request.user or not request.user.is_authenticated:
             return Response(
                 {
@@ -340,6 +436,19 @@ class TasksView(
         url_path="comments",
     )
     def comments(self, request, pk=None):
+        """_summary_
+
+        Args:
+            request (_type_): _description_
+            pk (_type_, optional): _description_. Defaults to None.
+
+        Raises:
+            NotFound: _description_
+            PermissionDenied: _description_
+
+        Returns:
+            _type_: _description_
+        """
         try:
             task = Task.objects.get(pk=pk)
         except Task.DoesNotExist:
@@ -393,6 +502,14 @@ class EmailCheckView(mixins.ListModelMixin, viewsets.GenericViewSet):
     serializer_class = UserNestedSerializer
 
     def list(self, request, *args, **kwargs):
+        """_summary_
+
+        Args:
+            request (_type_): _description_
+
+        Returns:
+            _type_: _description_
+        """
         email = request.query_params.get("email")
 
         if not request or not request.user.is_authenticated:

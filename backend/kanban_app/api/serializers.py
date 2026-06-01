@@ -53,6 +53,14 @@ class BoardsSerializer(serializers.ModelSerializer):
         return None
 
     def to_representation(self, instance):
+        """_summary_
+
+        Args:
+            instance (_type_): _description_
+
+        Returns:
+            _type_: _description_
+        """
         ret = super().to_representation(instance)
         request = self.context.get("request")
         view = self.context.get("view")
@@ -264,6 +272,15 @@ class TaskSerializer(serializers.ModelSerializer):
         read_only_fields = ["creator", "created_at", "updated_at"]
 
     def update(self, instance, validated_data):
+        """_summary_
+
+        Args:
+            instance (_type_): _description_
+            validated_data (_type_): _description_
+
+        Returns:
+            _type_: _description_
+        """
         if "assignee" in validated_data:
             instance.assignee = validated_data.get("assignee")
 
@@ -283,6 +300,18 @@ class TaskSerializer(serializers.ModelSerializer):
         return instance
 
     def to_internal_value(self, data):
+        """_summary_
+
+        Args:
+            data (_type_): _description_
+
+        Raises:
+            NotFound: _description_
+            exc: _description_
+
+        Returns:
+            _type_: _description_
+        """
         try:
             return super().to_internal_value(data)
         except serializers.ValidationError as exc:
@@ -308,6 +337,25 @@ class TaskSerializer(serializers.ModelSerializer):
         return obj.comment_set.count()
 
     def validate(self, attrs):
+        """_summary_
+
+        Args:
+            attrs (_type_): _description_
+
+        Raises:
+            serializers.ValidationError: _description_
+            PermissionDenied: _description_
+            Http404: _description_
+            PermissionDenied: _description_
+            PermissionDenied: _description_
+            serializers.ValidationError: _description_
+            serializers.ValidationError: _description_
+            PermissionDenied: _description_
+            ValidationError: _description_
+
+        Returns:
+            _type_: _description_
+        """
         request = self.context.get("request")
         if not request or not request.user:
             raise serializers.ValidationError({"detail": "Benutzer nicht eingeloggt."})
@@ -379,6 +427,7 @@ class TaskSerializer(serializers.ModelSerializer):
         return attrs
 
     def to_representation(self, instance):
+        """_summary_"""
         ret = super().to_representation(instance)
         request = self.context.get("request")
 
