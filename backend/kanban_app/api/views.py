@@ -101,7 +101,6 @@ class BoardListView(
             NotAuthenticated: _description_
         """
         super().initial(request, *args, **kwargs)
-
         if not request.user or not request.user.is_authenticated:
             raise NotAuthenticated(
                 "401: Nicht autorisiert. Der Benutzer muss eingeloggt sein."
@@ -124,66 +123,46 @@ class BoardListView(
         if self.action in ["retrieve", "update", "partial_update", "destroy"]:
             return Board.objects.all()
         # all other methods except retrieve, update, partial_update, destroy: POST, GET (list), HEAD, OPTIONS
-        print("get_queryset  user", user)
         return Board.objects.filter(Q(owner=user) | Q(member=user)).distinct()
 
     def perform_create(self, serializer):
         """set current user as owner of the board
-
+           POST: all authenticated users may create a board.
+           validate members is in validate BoardsSerializer,
+           because we need to check if all members exist in
+           the database before creating the board and adding members to it.
         Args:
             serializer (_type_): _description_
         """
-        members = self.request.data.get("members", [])
-        if members:
-            unique_members = list(set(members))
-            valid_members = User.objects.filter(id__in=unique_members)
-            if valid_members.count() != len(unique_members):
-                raise ValidationError(
-                    "400: Ungültige Anfragedaten. Möglicherweise sind einige Benutzer-Email-Adressen ungültig."
-                )
-            instance = serializer.save(owner=self.request.user)
-            instance.member.set(valid_members)
-        else:
-            instance = serializer.save(owner=self.request.user)
+        members_liste = serializer.validated_data.get("member", [])
+        print("validated_data in perform_create:", serializer.validated_data)
+        # members_liste = validated_data.pop("members", [])
+        print("members_liste in perform_create:", members_liste)
+        instance = serializer.save(owner=self.request.user)
+
+        if members_liste:
+            instance.member.set(members_liste)
 
     def perform_update(self, serializer):
-        """_summary_
-
-        Args:
-            serializer (_type_): _description_
+        """Update the title and members if they were transmitted from the frontend,
+        and the owner to the actual user if it was previously empty.
+        Only the owner of the board or member can update the board,
+        otherwise permission denied in permissions.py.
         """
-        current_board = serializer.instance
-        allowed_boards = self.get_queryset()
-        if not allowed_boards.filter(id=current_board.id).exists():
-            raise PermissionDenied(
-                "403: Verboten.       Der Benutzer muss entweder der Eigentümer oder ein Mitglied des Boards sein."
-            )
-
-        request_data = self.request.data
-        members_data = request_data.get("members", None)
-        if members_data is not None:
-            if not isinstance(members_data, list):
-                raise ValidationError(
-                    "400: Ungültige Anfragedaten. Möglicherweise sind einige Benutzer ungültig."
-                )
-            unique_members = list(set(members_data))
-            valid_members = User.objects.filter(id__in=unique_members)
-            if valid_members.count() != len(unique_members):
-                raise ValidationError(
-                    "400: Ungültige Anfragedaten. Möglicherweise sind einige Benutzer ungültig"
-                )
+        validate_members = serializer.validated_data.get("member", [])
+        validate_title = serializer.validated_data.get("title", "")
+        # if members or title in request data, then update the board,
+        #  otherwise only update the title and do not change the members of the board
+        if validate_members or validate_title:
             board_instance = serializer.save()
-            board_instance.member.set(valid_members)
+            board_instance.member.set(validate_members)
 
+        # if no owner, set current user as owner of the board
         user = self.request.user
-        owners_data = request_data.get("owner_id", None)
-        if owners_data is not None and user.is_superuser:
-            valid_owner = User.objects.filter(id=owners_data)
-            if valid_owner.count() != 1:
-                raise ValidationError(
-                    "400: Ungültige Anfragedaten. Möglicherweise ist der Benutzer ungültig."
-                )
-            serializer.save(owner_id=owners_data)
+        aktuelles_board = serializer.instance
+        aktueller_owner = aktuelles_board.owner
+        if aktueller_owner is None:
+            serializer.save(owner_id=user.id)
 
         return Response(serializer.data, status=status.HTTP_200_OK)
 

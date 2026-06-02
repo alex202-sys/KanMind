@@ -22,18 +22,47 @@ class BoardsSerializer(serializers.ModelSerializer):
     tasks_to_do_count = serializers.SerializerMethodField()
     tasks_high_prio_count = serializers.SerializerMethodField()
     owner_id = serializers.SerializerMethodField()
+    members = serializers.PrimaryKeyRelatedField(
+        many=True,
+        queryset=User.objects.all(),
+        source="member",
+        error_messages={
+            "does_not_exist": "400:       Ungültige Anfragedaten. Möglicherweise sind einige Benutzer-Email-Adressen ungültig."
+        },
+    )
 
     class Meta:
         model = Board
         fields = [
             "id",
             "title",
+            "members",
             "member_count",
             "ticket_count",
             "tasks_to_do_count",
             "tasks_high_prio_count",
             "owner_id",
         ]
+        # As a result, DRF reads the field during a POST request but does not output it by default during a GET request.
+        extra_kwargs = {"member": {"write_only": True}}
+
+    def to_internal_value(self, data):
+        # Hier liegen noch die nackten JSON-Rohdaten vor der Validierung
+        if "members" in data and isinstance(data["members"], list):
+            # Wir machen die IDs im rohen JSON eindeutig, BEVOR DRF die Felder prüft!
+            data = data.copy()  # data ist standardmäßig QueryDict/Query-immutable
+            data["members"] = list(set(data["members"]))
+
+        return super().to_internal_value(data)
+
+    # def validate(self, attrs):
+    #     print(attrs)
+    #     # Falls 'members' im POST-Request geschickt wurde,
+    #     # machen wir die Liste über ein set() eindeutig (entfernt doppelte IDs wie [3, 3, 3])
+    #     if "member" in attrs:
+    #         attrs["member"] = list(set(attrs["member"]))
+    #         print("Bereinigte Members in perform_create:", attrs)
+    #     return attrs
 
     def get_member_count(self, obj):
         return obj.member.count()
@@ -70,6 +99,9 @@ class BoardsSerializer(serializers.ModelSerializer):
         else:
             ret["owner_id"] = instance.owner.id
 
+        # only for superusers, show members details
+        #  and owner details in list and detail view,
+        #  for other users only in detail view
         if request and request.user and request.user.is_superuser:
             ret["member"] = [
                 {
@@ -89,6 +121,7 @@ class BoardsSerializer(serializers.ModelSerializer):
                 }
 
         if request and view and request.method == "GET" and view.action == "retrieve":
+            print("GET retrieve: Adding members and tasks details to the response")
             ret["members"] = [
                 {
                     "id": m.id,
@@ -168,6 +201,9 @@ class BoardsSerializer(serializers.ModelSerializer):
             ret.pop("tasks_to_do_count", None)
             ret.pop("tasks_high_prio_count", None)
             ret.pop("owner_id", None)
+
+        # ret.pop("members", None)
+        ret.pop("member", None)
 
         return ret
 
