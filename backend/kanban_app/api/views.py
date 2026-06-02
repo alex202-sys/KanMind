@@ -5,7 +5,12 @@ from rest_framework import mixins, viewsets
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.decorators import action
 from rest_framework.response import Response
-from rest_framework.exceptions import PermissionDenied, NotFound, ValidationError
+from rest_framework.exceptions import (
+    NotAuthenticated,
+    PermissionDenied,
+    NotFound,
+    ValidationError,
+)
 from rest_framework.status import (
     HTTP_201_CREATED,
     HTTP_400_BAD_REQUEST,
@@ -21,6 +26,7 @@ from .serializers import (
     TaskCommentSerializer,
 )
 from kanban_app.models import Board, Task, Comment
+from .permissions import isBoardOwnerOrMemberBoardOrAllPost
 import logging
 
 logger = logging.getLogger(__name__)
@@ -83,6 +89,7 @@ class BoardListView(
 
     queryset = Board.objects.all()
     serializer_class = BoardsSerializer
+    permission_classes = [isBoardOwnerOrMemberBoardOrAllPost]
 
     def initial(self, request, *args, **kwargs):
         """_summary_
@@ -96,26 +103,32 @@ class BoardListView(
         super().initial(request, *args, **kwargs)
 
         if not request.user or not request.user.is_authenticated:
-            from rest_framework.exceptions import NotAuthenticated
-
             raise NotAuthenticated(
                 "401: Nicht autorisiert. Der Benutzer muss eingeloggt sein."
             )
 
     def get_queryset(self):
-        """_summary_
+        """
+        - superusers have access to all boards.
+        - GET/PUT/PATCH/DELETE: owner or Member.
+        - DELETE: if not owner then permissiondenied in permissions.py.
 
         Returns:
             _type_: _description_
         """
+
         user = self.request.user
         if user.is_superuser:
             return Board.objects.all()
 
+        if self.action in ["retrieve", "update", "partial_update", "destroy"]:
+            return Board.objects.all()
+        # all other methods except retrieve, update, partial_update, destroy: POST, GET (list), HEAD, OPTIONS
+        print("get_queryset  user", user)
         return Board.objects.filter(Q(owner=user) | Q(member=user)).distinct()
 
     def perform_create(self, serializer):
-        """_summary_
+        """set current user as owner of the board
 
         Args:
             serializer (_type_): _description_

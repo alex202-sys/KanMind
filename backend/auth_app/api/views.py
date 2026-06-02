@@ -103,7 +103,7 @@ class UserLoginView(ObtainAuthToken):
                 request.data["username"] = user_obj.username
             except User.DoesNotExist:
                 return Response(
-                    {"error", "User with same email dosnt match"},
+                    {"error": "User with same email dosnt match"},
                     status=status.HTTP_400_BAD_REQUEST,
                 )
 

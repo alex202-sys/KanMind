@@ -1,14 +1,44 @@
 from rest_framework.permissions import BasePermission, SAFE_METHODS
+from rest_framework.exceptions import PermissionDenied, NotFound
+from urllib.request import Request
+from kanban_app.models import Board
 
 
-class isOwnerOrParticipant(BasePermission):
-    """_summary_
-
-    Args:
-        BasePermission (_type_): _description_
+class isBoardOwnerOrMemberBoardOrAllPost(BasePermission):
+    """
+    - POST: all authenticated users may create a board.
+    - GET/PUT/PATCH: owner or Member.
+    - DELETE: only owner can delete the board.
     """
 
-    def has_permission(self, request, view):
-        is_true_staff = request.user and request.user.is_staff
+    print("isBoardOwnerOrMemberBoardOrAllPost: permission check")
 
-        return is_true_staff or request.method in SAFE_METHODS
+    def has_permission(self, request, view):
+
+        if request.user.is_superuser:
+            return True
+
+        if not request.user or not request.user.is_authenticated:
+            return False
+        if request.method == "POST":
+            print("has_permission POST: all authenticated users may create a board.")
+            return True
+        return True
+
+    def has_object_permission(self, request, view, obj):
+        user = request.user
+        if user.is_superuser:
+            return True
+
+        if request.method == "DELETE":
+            if obj.owner == user:
+                return True
+            else:
+                raise PermissionDenied()
+        # elif Request.method in SAFE_METHODS or Request.method in ['PUT', 'PATCH']:
+        # all othe methods except DELETE: PATCH, PUT, GET, HEAD, OPTIONS
+        if obj.owner == user or user in obj.member.all():
+            return True
+        else:
+            raise PermissionDenied()
+        return False
