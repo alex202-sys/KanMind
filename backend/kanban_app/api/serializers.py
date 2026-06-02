@@ -8,14 +8,7 @@ User = get_user_model()
 
 
 class BoardsSerializer(serializers.ModelSerializer):
-    """_summary_
-
-    Args:
-        serializers (_type_): _description_
-
-    Returns:
-        _type_: _description_
-    """
+    """Serializer for Board model."""
 
     member_count = serializers.SerializerMethodField()
     ticket_count = serializers.SerializerMethodField()
@@ -27,7 +20,7 @@ class BoardsSerializer(serializers.ModelSerializer):
         queryset=User.objects.all(),
         source="member",
         error_messages={
-            "does_not_exist": "400:       Ungültige Anfragedaten. Möglicherweise sind einige Benutzer-Email-Adressen ungültig."
+            "does_not_exist": "400: Invalid request data. Some user email addresses may be invalid."
         },
     )
 
@@ -43,10 +36,13 @@ class BoardsSerializer(serializers.ModelSerializer):
             "tasks_high_prio_count",
             "owner_id",
         ]
-        # As a result, DRF reads the field during a POST request but does not output it by default during a GET request.
+        # As a result, DRF reads the field during a POST request
+        # but does not output it by default during a GET request.
         extra_kwargs = {"member": {"write_only": True}}
 
     def to_internal_value(self, data):
+        """Optimize Duplicate Members"""
+
         # Hier liegen noch die nackten JSON-Rohdaten vor der Validierung
         if "members" in data and isinstance(data["members"], list):
             # Wir machen die IDs im rohen JSON eindeutig, BEVOR DRF die Felder prüft!
@@ -54,15 +50,6 @@ class BoardsSerializer(serializers.ModelSerializer):
             data["members"] = list(set(data["members"]))
 
         return super().to_internal_value(data)
-
-    # def validate(self, attrs):
-    #     print(attrs)
-    #     # Falls 'members' im POST-Request geschickt wurde,
-    #     # machen wir die Liste über ein set() eindeutig (entfernt doppelte IDs wie [3, 3, 3])
-    #     if "member" in attrs:
-    #         attrs["member"] = list(set(attrs["member"]))
-    #         print("Bereinigte Members in perform_create:", attrs)
-    #     return attrs
 
     def get_member_count(self, obj):
         return obj.member.count()
@@ -82,13 +69,9 @@ class BoardsSerializer(serializers.ModelSerializer):
         return None
 
     def to_representation(self, instance):
-        """_summary_
-
-        Args:
-            instance (_type_): _description_
-
-        Returns:
-            _type_: _description_
+        """
+        Dynamically create responders based on the GET,
+        RETRIEVE, and PATCH methods.
         """
         ret = super().to_representation(instance)
         request = self.context.get("request")
@@ -120,6 +103,7 @@ class BoardsSerializer(serializers.ModelSerializer):
                     or instance.owner.username,
                 }
 
+        # for non-superusers, show members details and owner details only in detail view
         if request and view and request.method == "GET" and view.action == "retrieve":
             print("GET retrieve: Adding members and tasks details to the response")
             ret["members"] = [
@@ -173,6 +157,8 @@ class BoardsSerializer(serializers.ModelSerializer):
                 for t in instance.tasks.all()
             ]
 
+        # for non-superusers, show members details and owner details only
+        # in PATCH partial_update view
         if (
             request
             and view
@@ -202,20 +188,17 @@ class BoardsSerializer(serializers.ModelSerializer):
             ret.pop("tasks_high_prio_count", None)
             ret.pop("owner_id", None)
 
-        # ret.pop("members", None)
         ret.pop("member", None)
 
         return ret
 
 
 class UserNestedSerializer(serializers.ModelSerializer):
-    """_summary_
-
-    Args:
-        serializers (_type_): _description_
-
-    Returns:
-        _type_: _description_
+    """_fullname_ is a read-only field that concatenates
+    the first and last name of the user. If both are empty,
+    it falls back to the username.
+    This allows the frontend to display a full name
+    for the user without needing to concatenate it on
     """
 
     fullname = serializers.SerializerMethodField()
@@ -230,26 +213,13 @@ class UserNestedSerializer(serializers.ModelSerializer):
 
 
 class TaskSerializer(serializers.ModelSerializer):
-    """_summary_
-
-    Args:
-        serializers (_type_): _description_
-
-    Raises:
-        NotFound: _description_
-        exc: _description_
-        serializers.ValidationError: _description_
-        PermissionDenied: _description_
-        Http404: _description_
-        PermissionDenied: _description_
-        PermissionDenied: _description_
-        serializers.ValidationError: _description_
-        serializers.ValidationError: _description_
-        PermissionDenied: _description_
-        ValidationError: _description_
-
-    Returns:
-        _type_: _description_
+    """Serializer for Task model, with custom validation and representation logic.
+    It includes fields for assignee and reviewer, which are represented as nested
+    serializers for read operations and as primary key related fields for write operations.
+    The serializer also includes custom validation to ensure that the assignee and
+    reviewer are members of the board associated with the task, and that only superusers
+    can set the creator field. The to_representation method is overridden to conditionally
+    include or exclude certain fields based on the user's permissions and the request method.
     """
 
     comments_count = serializers.SerializerMethodField()
@@ -260,7 +230,7 @@ class TaskSerializer(serializers.ModelSerializer):
         required=False,
         allow_null=True,
         error_messages={
-            "does_not_exist": "400: Ungültige Anfragedaten. Möglicherweise fehlen erforderliche Felder oder enthalten ungültige Werte."
+            "does_not_exist": "400: Invalid request data. Required fields may be missing or contain invalid values."
         },
     )
     reviewer_id = serializers.PrimaryKeyRelatedField(
@@ -270,7 +240,7 @@ class TaskSerializer(serializers.ModelSerializer):
         required=False,
         allow_null=True,
         error_messages={
-            "does_not_exist": "400: Ungültige Anfragedaten. Möglicherweise fehlen erforderliche Felder oder enthalten ungültige Werte."
+            "does_not_exist": "400: Invalid request data. Required fields may be missing or contain invalid values."
         },
     )
     assignee = UserNestedSerializer(read_only=True, allow_null=True)
@@ -282,7 +252,7 @@ class TaskSerializer(serializers.ModelSerializer):
     board = serializers.PrimaryKeyRelatedField(
         queryset=Board.objects.all(),
         error_messages={
-            "does_not_exist": "404: Board nicht gefunden. Die angegebene Board-ID existiert nicht."
+            "does_not_exist": "404: Board not found. The specified Board ID does not exist."
         },
     )
 
@@ -308,14 +278,12 @@ class TaskSerializer(serializers.ModelSerializer):
         read_only_fields = ["creator", "created_at", "updated_at"]
 
     def update(self, instance, validated_data):
-        """_summary_
-
-        Args:
-            instance (_type_): _description_
-            validated_data (_type_): _description_
-
-        Returns:
-            _type_: _description_
+        """Custom update method to handle the logic for updating a Task instance.
+        It checks for the presence of 'assignee' and 'reviewer' in the validated
+        data and updates them accordingly. It also checks if the 'creator' field
+        is being updated and if the user making the request is a superuser before
+        allowing the update. Finally, it updates any other fields that are present
+        in the validated data and saves the instance.
         """
         if "assignee" in validated_data:
             instance.assignee = validated_data.get("assignee")
@@ -336,24 +304,17 @@ class TaskSerializer(serializers.ModelSerializer):
         return instance
 
     def to_internal_value(self, data):
-        """_summary_
-
-        Args:
-            data (_type_): _description_
-
-        Raises:
-            NotFound: _description_
-            exc: _description_
-
-        Returns:
-            _type_: _description_
+        """Override to_internal_value to catch the case where the
+        provided board ID does not exist, and raise a NotFound
+        exception with a custom message instead of the default
+        ValidationError.
         """
         try:
             return super().to_internal_value(data)
         except serializers.ValidationError as exc:
             if "board" in exc.detail:
                 raise NotFound(
-                    "404: Board nicht gefunden. Die angegebene Board-ID existiert nicht."
+                    "404: Board not found. The specified Board ID does not exist."
                 )
             raise exc
 
@@ -373,24 +334,9 @@ class TaskSerializer(serializers.ModelSerializer):
         return obj.comment_set.count()
 
     def validate(self, attrs):
-        """_summary_
-
-        Args:
-            attrs (_type_): _description_
-
-        Raises:
-            serializers.ValidationError: _description_
-            PermissionDenied: _description_
-            Http404: _description_
-            PermissionDenied: _description_
-            PermissionDenied: _description_
-            serializers.ValidationError: _description_
-            serializers.ValidationError: _description_
-            PermissionDenied: _description_
-            ValidationError: _description_
-
-        Returns:
-            _type_: _description_
+        """Custom validation to ensure that the user making the request
+        is a member of the board associated with the task, and that the
+        assignee and reviewer (if provided) are also members of the board.
         """
         request = self.context.get("request")
         if not request or not request.user:
@@ -463,7 +409,15 @@ class TaskSerializer(serializers.ModelSerializer):
         return attrs
 
     def to_representation(self, instance):
-        """_summary_"""
+        """Override to_representation to conditionally include or exclude
+        certain fields based on the user's permissions and the request method.
+        For non-superusers, if the request method is PATCH, the 'board' and
+        'comments_count' fields are removed from the response. Additionally,
+        for non-superusers, the 'creator', 'created_at', and 'updated_at'
+        fields are always removed from the response regardless of the request method.
+        This allows for a more tailored response based on the user's permissions
+        and the context of the request."""
+
         ret = super().to_representation(instance)
         request = self.context.get("request")
 
@@ -481,14 +435,8 @@ class TaskSerializer(serializers.ModelSerializer):
 
 
 class TaskCommentSerializer(serializers.ModelSerializer):
-    """_summary_
-
-    Args:
-        serializers (_type_): _description_
-
-    Returns:
-        _type_: _description_
-    """
+    """Serializer for Comment model, with a custom method field
+    to represent the author's full name."""
 
     author = serializers.SerializerMethodField()
 

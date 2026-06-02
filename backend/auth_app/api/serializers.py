@@ -4,14 +4,11 @@ from auth_app.models import UserProfile
 
 
 class UserProfileSerializer(serializers.ModelSerializer):
-    """_summary_
-
-    Args:
-        serializers (_type_): _description_
-
-    Returns:
-        _type_: _description_
-    """
+    """Serializer for the UserProfile model. It includes a method field
+    `fullname` that combines the first and last name of the associated User model.
+    The serializer allows for serialization and deserialization of UserProfile
+    instances, including the related User information. The `fullname` field is
+    read-only and is generated based on the first and last name of the user."""
 
     fullname = serializers.SerializerMethodField()
 
@@ -27,19 +24,8 @@ class UserProfileSerializer(serializers.ModelSerializer):
 
 
 class RegistrationSerializer(serializers.ModelSerializer):
-    """_summary_
-
-    Args:
-        serializers (_type_): _description_
-
-    Raises:
-        serializers.ValidationError: _description_
-        serializers.ValidationError: _description_
-        serializers.ValidationError: _description_
-        serializers.ValidationError: _description_
-
-    Returns:
-        _type_: _description_
+    """Serializer for user registration. It includes fields for email, fullname, and password confirmation.
+    The serializer validates that the email is unique and that the password and repeated password match.
     """
 
     repeated_password = serializers.CharField(write_only=True)
@@ -74,12 +60,7 @@ class RegistrationSerializer(serializers.ModelSerializer):
         return value
 
     def validate(self, data):
-        print(
-            "def validate: password:",
-            data.get("password"),
-            "   repeat_password:",
-            data.get("repeated_password"),
-        )
+
         if data.get("password") != data.get("repeated_password"):
             print("passwor is no valid.  data:", data)
             raise serializers.ValidationError({"password": "Passwords do not match"})

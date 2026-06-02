@@ -8,14 +8,9 @@ from .serializers import RegistrationSerializer, UserProfileSerializer
 
 
 class UserProfileList(generics.ListCreateAPIView):
-    """_summary_
-
-    Args:
-        generics (_type_): _description_
-
-    Returns:
-        _type_: _description_
-    """
+    """GET: List all user profiles. POST: Create a new user profile.
+    Only admin users can create new profiles, while authenticated users
+    can view the list of profiles."""
 
     queryset = UserProfile.objects.all()
     serializer_class = UserProfileSerializer
@@ -27,14 +22,11 @@ class UserProfileList(generics.ListCreateAPIView):
 
 
 class UserProfileDetail(generics.RetrieveUpdateDestroyAPIView):
-    """_summary_
-
-    Args:
-        generics (_type_): _description_
-
-    Returns:
-        _type_: _description_
-    """
+    """GET: Retrieve a user profile by ID. PUT/PATCH: Update a user profile
+    (only by the owner or an admin). DELETE: Delete a user profile
+    (only by the owner or an admin).     This view allows users to view, update,
+    or delete their own profile, while admin users can manage any profile.
+    Only authenticated users can access this endpoint."""
 
     queryset = UserProfile.objects.all()
     serializer_class = UserProfileSerializer
@@ -49,18 +41,17 @@ class UserProfileDetail(generics.RetrieveUpdateDestroyAPIView):
 
         if not request.user.is_staff and obj.user != request.user:
             self.permission_denied(
-                request, message="Only the owner or an admin may modify this profile.."
+                request, message="Only the owner or an admin may modify this profile."
             )
 
 
 class RegistrationView(generics.CreateAPIView):
-    """_summary_
-
-    Args:
-        generics (_type_): _description_
-
-    Returns:
-        _type_: _description_
+    """POST: Register a new user. This endpoint allows anyone to create
+    a new user account by providing the required registration details.
+    Upon successful registration, an authentication token is generated and returned
+    along with the user's information. If the registration data is invalid or
+    if there is an error during the registration process, an appropriate error
+    message is returned.
     """
 
     serializer_class = RegistrationSerializer
@@ -89,10 +80,11 @@ class RegistrationView(generics.CreateAPIView):
 
 
 class UserLoginView(ObtainAuthToken):
-    """_summary_
-
-    Args:
-        ObtainAuthToken (_type_): _description_
+    """POST: Log in a user. This endpoint allows registered users to log in by providing
+    their email and password. Upon successful authentication, an authentication token
+    is generated and returned along with the user's information. If the login credentials
+    are invalid or if there is an error during the login process, an appropriate error
+    message is returned.
     """
 
     def post(self, request, *args, **kwargs):
@@ -103,7 +95,7 @@ class UserLoginView(ObtainAuthToken):
                 request.data["username"] = user_obj.username
             except User.DoesNotExist:
                 return Response(
-                    {"error": "User with same email dosnt match"},
+                    {"error": "User with same email does not match"},
                     status=status.HTTP_400_BAD_REQUEST,
                 )
 

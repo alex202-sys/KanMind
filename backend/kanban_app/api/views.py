@@ -33,15 +33,10 @@ logger = logging.getLogger(__name__)
 
 
 def custom_exception_handler(exc, context):
-    """_summary_
-
-    Args:
-        exc (_type_): _description_
-        context (_type_): _description_
-
-    Returns:
-        _type_: _description_
-    """
+    """Custom exception handler that logs unexpected server errors
+    and returns a generic error message for 500 Internal Server Errors.
+    It uses the default DRF exception handler for known exceptions and
+    only logs and modifies the response for unhandled exceptions."""
     response = exception_handler(exc, context)
     if response is None:
         logger.error(f"Unerwarteter Serverfehler: {exc}", exc_info=True)
@@ -62,29 +57,9 @@ class BoardListView(
     mixins.DestroyModelMixin,
     viewsets.GenericViewSet,
 ):
-    """_summary_
-
-    Args:
-        mixins (_type_): _description_
-        mixins (_type_): _description_
-        mixins (_type_): _description_
-        mixins (_type_): _description_
-        mixins (_type_): _description_
-        viewsets (_type_): _description_
-
-    Raises:
-        NotAuthenticated: _description_
-        ValidationError: _description_
-        PermissionDenied: _description_
-        PermissionDenied: _description_
-        ValidationError: _description_
-        ValidationError: _description_
-        ValidationError: _description_
-        NotFound: _description_
-        PermissionDenied: _description_
-
-    Returns:
-        _type_: _description_
+    """ViewSet for managing Board instances with custom permissions and behaviors.
+    - GET: List all boards where the user is the owner or a member, or all boards for superusers.
+    - POST: Create a new board (all authenticated users can create).
     """
 
     queryset = Board.objects.all()
@@ -167,10 +142,11 @@ class BoardListView(
         return Response(serializer.data, status=status.HTTP_200_OK)
 
     def perform_destroy(self, instance):
-        """_summary_
-
-        Args:
-            instance (_type_): _description_
+        """Only the owner of the board can delete the board, otherwise
+        permission denied in permissions.py. Superusers can delete any board.
+        If the user is not the owner and not a superuser, a PermissionDenied
+        exception is raised. If the user is authorized to delete the board,
+        it is deleted and a 204 No Content response is returned.
         """
         user = self.request.user
         if not user.is_superuser:
@@ -186,17 +162,9 @@ class BoardListView(
         )
 
     def retrieve(self, request, *args, **kwargs):
-        """_summary_
-
-        Args:
-            request (_type_): _description_
-
-        Raises:
-            NotFound: _description_
-            PermissionDenied: _description_
-
-        Returns:
-            _type_: _description_
+        """Retrieve a board instance. Only the owner of the board
+        or member can retrieve the board, otherwise permission denied
+        in permissions.py. Superusers can retrieve any board.
         """
         if not request.user or not request.user.is_authenticated:
             return Response(
@@ -234,28 +202,16 @@ class TasksView(
     mixins.DestroyModelMixin,
     viewsets.GenericViewSet,
 ):
-    """_summary_
-
-    Args:
-        mixins (_type_): _description_
-        mixins (_type_): _description_
-        mixins (_type_): _description_
-        mixins (_type_): _description_
-        mixins (_type_): _description_
-        viewsets (_type_): _description_
-
-    Raises:
-        PermissionDenied: _description_
-        NotFound: _description_
-        PermissionDenied: _description_
-        NotFound: _description_
-        NotFound: _description_
-        PermissionDenied: _description_
-        NotFound: _description_
-        PermissionDenied: _description_
-
-    Returns:
-        _type_: _description_
+    """ViewSet for managing Task instances with custom permissions and behaviors.
+    - GET: List all tasks where the user is the creator, or the user is assignee
+      or reviewer, or the user is a member of the board to which the task belongs,
+      or all tasks for superusers.
+    - POST: Create a new task (only for members of the board to which the task belongs
+      or superusers can create tasks). The creator of the task is set to the current user.
+    - PUT/PATCH: Update a task (only for members of the board to which the task belongs
+      or superusers can update tasks).
+    - DELETE: Delete a task (only the creator of the task, the owner of the board
+      to which the task belongs, or superusers can delete tasks).
     """
 
     queryset = Task.objects.all()
@@ -263,10 +219,10 @@ class TasksView(
     permission_classes = [IsAuthenticated]
 
     def get_queryset(self):
-        """_summary_
-
-        Returns:
-            _type_: _description_
+        """- superusers have access to all tasks.
+        - GET/PUT/PATCH/DELETE: creator, assignee, reviewer, member of the board
+          to which the task belongs.
+        - DELETE: if not creator and not board owner then permissiondenied in destroy method.
         """
         user = self.request.user
         if user.is_superuser:
@@ -279,18 +235,14 @@ class TasksView(
         ).distinct()
 
     def perform_create(self, serializer):
-        """_summary_
-
-        Args:
-            serializer (_type_): _description_
+        """Set the creator of the task to the current user when creating a new task.
+        Only members of the board to which the task belongs or superusers can create tasks.
         """
         serializer.save(creator=self.request.user)
 
     def perform_update(self, serializer):
-        """_summary_
-
-        Args:
-            serializer (_type_): _description_
+        """Custom update method to handle the logic for updating a Task instance.
+        It checks for the presence of 'assignee' and 'reviewer' in the validated
         """
         user = self.request.user
         task_instance = serializer.instance
@@ -299,52 +251,43 @@ class TasksView(
             is_member = board.member.filter(id=user.id).exists()
             if not is_member:
                 raise PermissionDenied(
-                    "403: Verboten. Der Benutzer muss Mitglied des Boards sein, zu dem die Task gehört."
+                    "403: Forbidden. The user must be a member of the board to which the task belongs."
                 )
 
         serializer.save()
         return super().perform_update(serializer)
 
     def destroy(self, request, *args, **kwargs):
-        """_summary_
-
-        Args:
-            request (_type_): _description_
-
-        Raises:
-            NotFound: _description_
-            PermissionDenied: _description_
-
-        Returns:
-            _type_: _description_
+        """Only the creator of the task, the owner of the board to which the task belongs,
+        or superusers can delete tasks. If the user is not authorized to delete the task,
+        a PermissionDenied exception is raised. If the task does not exist,
+        a NotFound exception is raised. If the user is authorized to delete the task,
+        it is deleted and a 204 No Content response is returned.
         """
         try:
             instance = self.get_object()
         except Exception:
-            raise NotFound(
-                "404: Task nicht gefunden. Die angegebene Task-ID existiert nicht."
-            )
+            raise NotFound("404: Task not found. The specified task ID does not exist.")
 
         user = request.user
         is_task_creator = getattr(instance, "creator", None) == user
         is_board_owner = instance.board.owner == user if instance.board else False
         if not (is_task_creator or is_board_owner or user.is_superuser):
             raise PermissionDenied(
-                "403: Verboten. Nur der Ersteller der Task oder der Eigentümer des Boards kann eine Task löschen."
+                "403: Forbidden. Only the creator of the task or the owner of the board can delete a task."
             )
         instance.delete()
         return Response(None, status=status.HTTP_204_NO_CONTENT)
 
     @action(detail=False, methods=["get"], url_path="assigned-to-me")
     def assigned_to_me(self, request):
-        """_summary_
-
-        Args:
-            request (_type_): _description_
-
-        Returns:
-            _type_: _description_
+        """List all tasks where the user is the assignee.
+        Only members of the board to which the task belongs or superusers can access this endpoint.
+        If the user is not authenticated, a 401 Unauthorized response is returned.
+        If the user is authenticated, a list of tasks assigned to the user is returned,
+          with pagination if applicable.
         """
+
         user_tasks = Task.objects.filter(assignee=request.user)
         page = self.paginate_queryset(user_tasks)
         if page is not None:
@@ -355,13 +298,11 @@ class TasksView(
 
     @action(detail=False, methods=["get"], url_path="reviewing")
     def reviewing_to_me(self, request):
-        """_summary_
-
-        Args:
-            request (_type_): _description_
-
-        Returns:
-            _type_: _description_
+        """List all tasks where the user is the reviewer.
+        Only members of the board to which the task belongs or superusers
+        can access this endpoint. If the user is not authenticated,
+        a 401 Unauthorized response is returned. If the user is authenticated,
+        a list of tasks reviewing the user is returned, with pagination if applicable.
         """
         user_tasks = Task.objects.filter(reviewer=request.user)
         page = self.paginate_queryset(user_tasks)
@@ -378,20 +319,8 @@ class TasksView(
         permission_classes=[IsAuthenticated],
     )
     def delete_comments(self, request, pk=None, comment_id=None):
-        """_summary_
-
-        Args:
-            request (_type_): _description_
-            pk (_type_, optional): _description_. Defaults to None.
-            comment_id (_type_, optional): _description_. Defaults to None.
-
-        Raises:
-            NotFound: _description_
-            NotFound: _description_
-            PermissionDenied: _description_
-
-        Returns:
-            _type_: _description_
+        """Delete a comment from a task. Only the author of the comment can delete it.
+        If the user is not authenticated, a 401 Unauthorized response is returned.
         """
         if not request.user or not request.user.is_authenticated:
             return Response(
@@ -428,31 +357,23 @@ class TasksView(
         url_path="comments",
     )
     def comments(self, request, pk=None):
-        """_summary_
-
-        Args:
-            request (_type_): _description_
-            pk (_type_, optional): _description_. Defaults to None.
-
-        Raises:
-            NotFound: _description_
-            PermissionDenied: _description_
-
-        Returns:
-            _type_: _description_
+        """Handle GET and POST requests for comments related to a specific task.
+        For GET requests, it retrieves all comments for the specified task and
+        returns them in the response. For POST requests, it creates a new comment
+        for the specified task with the content provided in the request data and
+        the author set to the current user. Only members of
+        the board to which the task belongs can access this endpoint.
         """
         try:
             task = Task.objects.get(pk=pk)
         except Task.DoesNotExist:
-            raise NotFound(
-                "404: Task nicht gefunden. Die angegebene Task-ID existiert nicht."
-            )
+            raise NotFound("404: Task not found. The specified task ID does not exist.")
 
         board = task.board
         allowed_users = set(board.member.all())
         if request.user not in allowed_users and not request.user.is_superuser:
             raise PermissionDenied(
-                "403: Verboten. Der Benutzer muss Mitglied des Boards sein, zu dem die Task gehört."
+                "403: Forbidden. The user must be a member of the board to which the task belongs."
             )
 
         if request.method == "GET":
@@ -465,7 +386,7 @@ class TasksView(
             if not content or str(content).strip() == "":
                 return Response(
                     {
-                        "detail": "400: Ungültige Anfragedaten. Möglicherweise ist der `content`-Wert leer."
+                        "detail": "400: Invalid request data. The `content` value might be empty."
                     },
                     status=status.HTTP_400_BAD_REQUEST,
                 )
@@ -480,27 +401,20 @@ class TasksView(
 
 
 class EmailCheckView(mixins.ListModelMixin, viewsets.GenericViewSet):
-    """_summary_
-
-    Args:
-        mixins (_type_): _description_
-        viewsets (_type_): _description_
-
-    Returns:
-        _type_: _description_
+    """ViewSet for checking if a user with a given email exists.
+    It allows authenticated users to check if an email is already associated
+    with an existing user account. The view expects an 'email' query parameter
+    and returns the user details if a user with that email exists, or an appropriate
+    error message if the email is missing, the user is not authenticated, or no user
+    with that email is found.
     """
 
     queryset = User.objects.all()
     serializer_class = UserNestedSerializer
 
     def list(self, request, *args, **kwargs):
-        """_summary_
-
-        Args:
-            request (_type_): _description_
-
-        Returns:
-            _type_: _description_
+        """Check if a user with the given email exists and return their details.
+        Only authenticated users can access this endpoint. The email to check is
         """
         email = request.query_params.get("email")
 
@@ -513,7 +427,7 @@ class EmailCheckView(mixins.ListModelMixin, viewsets.GenericViewSet):
         if not email:
             return Response(
                 {
-                    "error": "400: Ungültige Anfrage. Die E-Mail-Adresse fehlt oder hat ein falsches Format."
+                    "error": "400: Invalid request. The email address is missing or has an incorrect format."
                 },
                 status=status.HTTP_400_BAD_REQUEST,
             )
@@ -525,6 +439,6 @@ class EmailCheckView(mixins.ListModelMixin, viewsets.GenericViewSet):
 
         except User.DoesNotExist:
             return Response(
-                {"error": "404: Email nicht gefunden. Die Email exestiert nicht."},
+                {"error": "404: Email not found. The email does not exist."},
                 status=status.HTTP_404_NOT_FOUND,
             )
