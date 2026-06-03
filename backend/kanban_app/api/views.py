@@ -26,7 +26,10 @@ from .serializers import (
     TaskCommentSerializer,
 )
 from kanban_app.models import Board, Task, Comment
-from .permissions import isBoardOwnerOrMemberBoardOrAllPost
+from .permissions import (
+    IsMemberOwnerBoardOrCreatorTask,
+    isBoardOwnerOrMemberBoardOrAllPost,
+)
 import logging
 
 logger = logging.getLogger(__name__)
@@ -45,7 +48,6 @@ def custom_exception_handler(exc, context):
             {"detail": "500: Interner Serverfehler."},
             status=status.HTTP_500_INTERNAL_SERVER_ERROR,
         )
-
     return response
 
 
@@ -138,23 +140,14 @@ class BoardListView(
         aktueller_owner = aktuelles_board.owner
         if aktueller_owner is None:
             serializer.save(owner_id=user.id)
-
         return Response(serializer.data, status=status.HTTP_200_OK)
 
     def perform_destroy(self, instance):
         """Only the owner of the board can delete the board, otherwise
         permission denied in permissions.py. Superusers can delete any board.
-        If the user is not the owner and not a superuser, a PermissionDenied
-        exception is raised. If the user is authorized to delete the board,
+        If the user is authorized to delete the board,
         it is deleted and a 204 No Content response is returned.
         """
-        user = self.request.user
-        if not user.is_superuser:
-            is_owner = instance.owner == user
-            if not is_owner:
-                raise PermissionDenied(
-                    "403: Verboten. Der Benutzer muss der Eigentümer des Boards sein, um es zu löschen."
-                )
         instance.delete()
         return Response(
             None,
@@ -166,29 +159,13 @@ class BoardListView(
         or member can retrieve the board, otherwise permission denied
         in permissions.py. Superusers can retrieve any board.
         """
-        if not request.user or not request.user.is_authenticated:
-            return Response(
-                {
-                    "detail": "401: Nicht autorisiert. Der Benutzer muss eingeloggt sein."
-                },
-                status=status.HTTP_401_UNAUTHORIZED,
-            )
-
         pk = kwargs.get("pk")
         try:
             board = Board.objects.get(pk=pk)
         except Board.DoesNotExist:
             raise NotFound(
-                "404: Board nicht gefunden. Die angegebene Board-ID existiert nicht."
+                "404: Board not found. The specified Board ID does not exist."
             )
-
-        if not request.user.is_superuser:
-            is_owner = board.owner == request.user
-            is_member = board.member.filter(id=request.user.id).exists()
-            if not is_owner and not is_member:
-                raise PermissionDenied(
-                    "403: Verboten. Der Benutzer muss entweder der Eigentümer oder ein Mitglied des Boards sein."
-                )
 
         serializer = self.get_serializer(board)
         return Response(serializer.data, status=status.HTTP_200_OK)
@@ -216,23 +193,35 @@ class TasksView(
 
     queryset = Task.objects.all()
     serializer_class = TaskSerializer
-    permission_classes = [IsAuthenticated]
+    permission_classes = [IsAuthenticated, IsMemberOwnerBoardOrCreatorTask]
 
     def get_queryset(self):
-        """- superusers have access to all tasks.
-        - GET/PUT/PATCH/DELETE: creator, assignee, reviewer, member of the board
-          to which the task belongs.
-        - DELETE: if not creator and not board owner then permissiondenied in destroy method.
+        """
+        - superusers have access to all tasks.
+        - GET: assignee, reviewer
+        - PUT/PATCH: member of the board
+        - DELETE: check if task exist
         """
         user = self.request.user
         if user.is_superuser:
             return Task.objects.all()
 
-        if self.action in ["retrieve", "update", "partial_update", "destroy"]:
-            return Task.objects.all()
-        return Task.objects.filter(
-            Q(board__member=user) | Q(board__owner=user)
-        ).distinct()
+        # delete
+        if self.action == "destroy":
+            try:
+                obj_delete = Task.objects.get(pk=self.kwargs.get("pk"))
+                return Task.objects.all()
+            except Task.DoesNotExist:
+                raise NotFound(
+                    "404: Task not found. The specified task ID does not exist."
+                )
+
+        # retrieve, update, partial_update, post
+        if self.action in ["update", "partial_update", "create", "post"]:
+            return Task.objects.filter(board__member=user).distinct()
+
+        # GET, retrieve for assignee, reviewer in tasks
+        return Task.objects.filter(Q(assignee=user) | Q(reviewer=user)).distinct()
 
     def perform_create(self, serializer):
         """Set the creator of the task to the current user when creating a new task.
@@ -241,18 +230,18 @@ class TasksView(
         serializer.save(creator=self.request.user)
 
     def perform_update(self, serializer):
-        """Custom update method to handle the logic for updating a Task instance.
-        It checks for the presence of 'assignee' and 'reviewer' in the validated
+        """Only members of the board to which the task belongs or superusers can update tasks.
+        If the user is not authorized to update the task, a PermissionDenied exception is raised.
         """
-        user = self.request.user
-        task_instance = serializer.instance
-        board = task_instance.board
-        if not user.is_superuser and board:
-            is_member = board.member.filter(id=user.id).exists()
-            if not is_member:
-                raise PermissionDenied(
-                    "403: Forbidden. The user must be a member of the board to which the task belongs."
-                )
+        # user = self.request.user
+        # task_instance = serializer.instance
+        # board = task_instance.board
+        # if not user.is_superuser and board:
+        #     is_member = board.member.filter(id=user.id).exists()
+        #     if not is_member:
+        #         raise PermissionDenied(
+        #             "403: Forbidden. The user must be a member of the board to which the task belongs."
+        #         )
 
         serializer.save()
         return super().perform_update(serializer)
@@ -264,20 +253,19 @@ class TasksView(
         a NotFound exception is raised. If the user is authorized to delete the task,
         it is deleted and a 204 No Content response is returned.
         """
-        try:
-            instance = self.get_object()
-        except Exception:
-            raise NotFound("404: Task not found. The specified task ID does not exist.")
 
-        user = request.user
-        is_task_creator = getattr(instance, "creator", None) == user
-        is_board_owner = instance.board.owner == user if instance.board else False
-        if not (is_task_creator or is_board_owner or user.is_superuser):
-            raise PermissionDenied(
-                "403: Forbidden. Only the creator of the task or the owner of the board can delete a task."
-            )
-        instance.delete()
-        return Response(None, status=status.HTTP_204_NO_CONTENT)
+        instance = self.get_object()
+        print("Task to delete:", instance)
+        self.perform_destroy(instance)
+        # user = request.user
+        # is_task_creator = getattr(instance, "creator", None) == user
+        # is_board_owner = instance.board.owner == user if instance.board else False
+        # if not (is_task_creator or is_board_owner or user.is_superuser):
+        #     raise PermissionDenied(
+        #         "403: Forbidden. Only the creator of the task or the owner of the board can delete a task."
+        #     )
+        # instance.delete()
+        return Response(status=status.HTTP_204_NO_CONTENT)
 
     @action(detail=False, methods=["get"], url_path="assigned-to-me")
     def assigned_to_me(self, request):

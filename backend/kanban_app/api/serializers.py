@@ -77,36 +77,10 @@ class BoardsSerializer(serializers.ModelSerializer):
         request = self.context.get("request")
         view = self.context.get("view")
 
-        if not instance.owner:
-            ret["owner_id"] = None
-        else:
-            ret["owner_id"] = instance.owner.id
-
-        # only for superusers, show members details
-        #  and owner details in list and detail view,
-        #  for other users only in detail view
-        if request and request.user and request.user.is_superuser:
-            ret["member"] = [
-                {
-                    "id": m.id,
-                    "username": m.username,
-                    "fullname": m.get_full_name() or m.username,
-                }
-                for m in instance.member.all()
-            ]
-
-            if instance.owner:
-                ret["owner_id"] = {
-                    "id": instance.owner.id,
-                    "username": instance.owner.username,
-                    "fullname": instance.owner.get_full_name()
-                    or instance.owner.username,
-                }
-
         # for non-superusers, show members details and owner details only in detail view
         if request and view and request.method == "GET" and view.action == "retrieve":
-            print("GET retrieve: Adding members and tasks details to the response")
-            ret["members"] = [
+            # ret["owner_id"] = instance.owner.id
+            members_data = [
                 {
                     "id": m.id,
                     "email": getattr(m, "email", ""),
@@ -114,13 +88,8 @@ class BoardsSerializer(serializers.ModelSerializer):
                 }
                 for m in instance.member.all()
             ]
-            ret.pop("member", None)
-            ret.pop("member_count", None)
-            ret.pop("ticket_count", None)
-            ret.pop("tasks_to_do_count", None)
-            ret.pop("tasks_high_prio_count", None)
 
-            ret["tasks"] = [
+            tasks_data = [
                 {
                     "id": t.id,
                     "title": t.title,
@@ -157,6 +126,14 @@ class BoardsSerializer(serializers.ModelSerializer):
                 for t in instance.tasks.all()
             ]
 
+            ret = {
+                "id": ret.get("id"),
+                "title": ret.get("title"),
+                "owner_id": instance.owner.id if instance.owner else None,
+                "members": members_data,
+                "tasks": tasks_data,
+            }
+
         # for non-superusers, show members details and owner details only
         # in PATCH partial_update view
         if (
@@ -181,7 +158,7 @@ class BoardsSerializer(serializers.ModelSerializer):
                 }
                 for m in instance.member.all()
             ]
-            ret.pop("member", None)
+            ret.pop("members", None)
             ret.pop("member_count", None)
             ret.pop("ticket_count", None)
             ret.pop("tasks_to_do_count", None)
@@ -189,7 +166,6 @@ class BoardsSerializer(serializers.ModelSerializer):
             ret.pop("owner_id", None)
 
         ret.pop("member", None)
-
         return ret
 
 
@@ -291,11 +267,6 @@ class TaskSerializer(serializers.ModelSerializer):
         if "reviewer" in validated_data:
             instance.reviewer = validated_data.get("reviewer")
 
-        request = self.context.get("request")
-        if "creator" in validated_data:
-            if request.user and request.user.is_superuser:
-                instance.creator = validated_data.get("creator")
-
         for attr, value in validated_data.items():
             if attr not in ["assignee", "reviewer"]:
                 setattr(instance, attr, value)
@@ -340,12 +311,12 @@ class TaskSerializer(serializers.ModelSerializer):
         """
         request = self.context.get("request")
         if not request or not request.user:
-            raise serializers.ValidationError({"detail": "Benutzer nicht eingeloggt."})
+            raise serializers.ValidationError({"detail": "User not logged in."})
 
         if self.instance and "board" in attrs:
             if attrs["board"] != self.instance.board:
                 raise PermissionDenied(
-                    "403: Verboten. Das Ändern der bestehenden Board-ID ist nicht erlaubt!"
+                    "403: Forbidden. Changing the existing Board ID is not allowed!"
                 )
 
         board = attrs.get("board")
@@ -354,7 +325,7 @@ class TaskSerializer(serializers.ModelSerializer):
 
         if not board:
             raise Http404(
-                "404: Board nicht gefunden. Die angegebene Board-ID existiert nicht."
+                "404: Board not found. The specified Board ID does not exist."
             )
 
         current_user = request.user
@@ -363,18 +334,18 @@ class TaskSerializer(serializers.ModelSerializer):
             action_text = "bearbeiten" if self.instance else "erstellen"
             if action_text == "bearbeiten":
                 raise PermissionDenied(
-                    "403: Verboten. Der Benutzer muss Mitglied des Boards sein, zu dem die Task gehört."
+                    "403: Forbidden. The user must be a member of the board to which the task belongs."
                 )
             else:
                 raise PermissionDenied(
-                    "403: Verboten. Der Benutzer muss Mitglied des Boards sein, um eine Task zu erstellen"
+                    "403: Forbidden. The user must be a member of the board to create a task."
                 )
 
         new_assignee = attrs.get("assignee")
         if new_assignee and new_assignee not in allowed_users:
             raise serializers.ValidationError(
                 {
-                    "assignee_id": "400: Ungültige Anfragedaten. Möglicherweise fehlen erforderliche Felder oder enthalten ungültige Werte."
+                    "assignee_id": "400: Invalid request data. Required fields may be missing or contain invalid values."
                 }
             )
 
@@ -382,7 +353,7 @@ class TaskSerializer(serializers.ModelSerializer):
         if new_reviewer and new_reviewer not in allowed_users:
             raise serializers.ValidationError(
                 {
-                    "reviewer_id": "400: Ungültige Anfragedaten. Möglicherweise fehlen erforderliche Felder oder enthalten ungültige Werte."
+                    "reviewer_id": "400: Invalid request data. Required fields may be missing or contain invalid values."
                 }
             )
 
@@ -391,7 +362,7 @@ class TaskSerializer(serializers.ModelSerializer):
 
             if request and request.user and not request.user.is_superuser:
                 raise PermissionDenied(
-                    "403: Verboten. Nur Admins dürfen den Creator ändern."
+                    "403: Forbidden. Only admins may change the creator."
                 )
 
             if board:
@@ -402,7 +373,7 @@ class TaskSerializer(serializers.ModelSerializer):
                 if new_creator not in allowed_users:
                     raise ValidationError(
                         {
-                            "creator": "400: Ungültige Anfragedaten. Der neue Creator muss ein Mitglied oder Besitzerdieses Boards sein."
+                            "creator": "400: Invalid request data. The new creator must be a member or owner of the board."
                         }
                     )
 
