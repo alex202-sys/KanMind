@@ -29,6 +29,8 @@ from kanban_app.models import Board, Task, Comment
 from .permissions import (
     IsMemberOwnerBoardOrCreatorTask,
     isBoardOwnerOrMemberBoardOrAllPost,
+    isCreatorCommentOrSuperuser,
+    isMemberOfBoardsOrSuperuser,
 )
 import logging
 
@@ -92,11 +94,11 @@ class BoardListView(
         Returns:
             _type_: _description_
         """
-
+        print("get_queryset")
         user = self.request.user
         if user.is_superuser:
             return Board.objects.all()
-
+        # for permissionsdeneid check in permissions-> all objects
         if self.action in ["retrieve", "update", "partial_update", "destroy"]:
             return Board.objects.all()
         # all other methods except retrieve, update, partial_update, destroy: POST, GET (list), HEAD, OPTIONS
@@ -159,15 +161,24 @@ class BoardListView(
         or member can retrieve the board, otherwise permission denied
         in permissions.py. Superusers can retrieve any board.
         """
-        pk = kwargs.get("pk")
-        try:
-            board = Board.objects.get(pk=pk)
-        except Board.DoesNotExist:
-            raise NotFound(
-                "404: Board not found. The specified Board ID does not exist."
-            )
+        # pk = kwargs.get("pk")
+        # try:
+        #     #board = Board.objects.get(pk=pk)
+        #     board = Board.objects.get_queryset()
 
-        serializer = self.get_serializer(board)
+        #     print("retrieve board", board)
+        # except Board.DoesNotExist:
+        #     raise NotFound(
+        #         "404: Board not found. The specified Board ID does not exist."
+        #     )
+
+        # aufgerufen und ggf. ein 403-Fehler geworfen!
+        instance = self.get_object()
+        print("retrieve instance", instance)
+        # 2. Objekt endgültig löschen
+        # self.perform_retrieve(instance)
+
+        serializer = self.get_serializer(instance)
         return Response(serializer.data, status=status.HTTP_200_OK)
 
 
@@ -206,8 +217,8 @@ class TasksView(
         if user.is_superuser:
             return Task.objects.all()
 
-        # delete
-        if self.action == "destroy":
+        # check if task exist, otherwise not found in destroy method
+        if self.action in ["destroy", "comments"]:
             try:
                 obj_delete = Task.objects.get(pk=self.kwargs.get("pk"))
                 return Task.objects.all()
@@ -216,8 +227,9 @@ class TasksView(
                     "404: Task not found. The specified task ID does not exist."
                 )
 
-        # retrieve, update, partial_update, post
-        if self.action in ["update", "partial_update", "create", "post"]:
+        # retrieve, update, partial_update, post, # , "create", "post",
+        if self.action in ["update", "partial_update"]:
+            print("get_queryset action ", self.action)
             return Task.objects.filter(board__member=user).distinct()
 
         # GET, retrieve for assignee, reviewer in tasks
@@ -233,48 +245,21 @@ class TasksView(
         """Only members of the board to which the task belongs or superusers can update tasks.
         If the user is not authorized to update the task, a PermissionDenied exception is raised.
         """
-        # user = self.request.user
-        # task_instance = serializer.instance
-        # board = task_instance.board
-        # if not user.is_superuser and board:
-        #     is_member = board.member.filter(id=user.id).exists()
-        #     if not is_member:
-        #         raise PermissionDenied(
-        #             "403: Forbidden. The user must be a member of the board to which the task belongs."
-        #         )
-
         serializer.save()
         return super().perform_update(serializer)
 
     def destroy(self, request, *args, **kwargs):
         """Only the creator of the task, the owner of the board to which the task belongs,
-        or superusers can delete tasks. If the user is not authorized to delete the task,
-        a PermissionDenied exception is raised. If the task does not exist,
-        a NotFound exception is raised. If the user is authorized to delete the task,
-        it is deleted and a 204 No Content response is returned.
+        or superusers can delete tasks.
         """
-
         instance = self.get_object()
-        print("Task to delete:", instance)
         self.perform_destroy(instance)
-        # user = request.user
-        # is_task_creator = getattr(instance, "creator", None) == user
-        # is_board_owner = instance.board.owner == user if instance.board else False
-        # if not (is_task_creator or is_board_owner or user.is_superuser):
-        #     raise PermissionDenied(
-        #         "403: Forbidden. Only the creator of the task or the owner of the board can delete a task."
-        #     )
-        # instance.delete()
+
         return Response(status=status.HTTP_204_NO_CONTENT)
 
     @action(detail=False, methods=["get"], url_path="assigned-to-me")
     def assigned_to_me(self, request):
-        """List all tasks where the user is the assignee.
-        Only members of the board to which the task belongs or superusers can access this endpoint.
-        If the user is not authenticated, a 401 Unauthorized response is returned.
-        If the user is authenticated, a list of tasks assigned to the user is returned,
-          with pagination if applicable.
-        """
+        """List all tasks where the user is the assignee."""
 
         user_tasks = Task.objects.filter(assignee=request.user)
         page = self.paginate_queryset(user_tasks)
@@ -286,12 +271,7 @@ class TasksView(
 
     @action(detail=False, methods=["get"], url_path="reviewing")
     def reviewing_to_me(self, request):
-        """List all tasks where the user is the reviewer.
-        Only members of the board to which the task belongs or superusers
-        can access this endpoint. If the user is not authenticated,
-        a 401 Unauthorized response is returned. If the user is authenticated,
-        a list of tasks reviewing the user is returned, with pagination if applicable.
-        """
+        """List all tasks where the user is the reviewer."""
         user_tasks = Task.objects.filter(reviewer=request.user)
         page = self.paginate_queryset(user_tasks)
         if page is not None:
@@ -304,38 +284,24 @@ class TasksView(
         detail=True,
         methods=["delete"],
         url_path=r"comments/(?P<comment_id>[^/.]+)",
-        permission_classes=[IsAuthenticated],
+        permission_classes=[isCreatorCommentOrSuperuser],
     )
     def delete_comments(self, request, pk=None, comment_id=None):
         """Delete a comment from a task. Only the author of the comment can delete it.
         If the user is not authenticated, a 401 Unauthorized response is returned.
         """
-        if not request.user or not request.user.is_authenticated:
-            return Response(
-                {
-                    "detail": "401: Nicht autorisiert. Der Benutzer muss eingeloggt sein."
-                },
-                status=status.HTTP_401_UNAUTHORIZED,
-            )
-
         try:
             task = Task.objects.get(pk=pk)
         except Task.DoesNotExist:
-            raise NotFound("404: Kommentar oder Task nicht gefunden.")
-
+            raise NotFound("404: Task nicht gefunden.")
+        print("delete_comments")
         try:
             comment = Comment.objects.get(pk=comment_id, task=task)
         except Comment.DoesNotExist:
-            raise NotFound("404: Kommentar oder Task nicht gefunden.")
-
-        if comment.author != request.user:
-            raise PermissionDenied(
-                "403: Verboten. Nur der Ersteller des Kommentars darf ihn löschen."
-            )
+            raise NotFound("404: Kommentar nicht gefunden.")
 
         comment.delete()
         return Response(
-            None,
             status=status.HTTP_204_NO_CONTENT,
         )
 
@@ -343,28 +309,22 @@ class TasksView(
         detail=True,
         methods=["get", "post"],
         url_path="comments",
+        permission_classes=[isMemberOfBoardsOrSuperuser],
     )
     def comments(self, request, pk=None):
         """Handle GET and POST requests for comments related to a specific task.
-        For GET requests, it retrieves all comments for the specified task and
-        returns them in the response. For POST requests, it creates a new comment
-        for the specified task with the content provided in the request data and
-        the author set to the current user. Only members of
-        the board to which the task belongs can access this endpoint.
+        Only members of the board to which the task belongs can access this endpoint.
         """
+        print("queryset.methoden ", request.method)
+
         try:
-            task = Task.objects.get(pk=pk)
+            # task = Task.objects.get(pk=pk)
+            task = self.get_object()
         except Task.DoesNotExist:
             raise NotFound("404: Task not found. The specified task ID does not exist.")
-
-        board = task.board
-        allowed_users = set(board.member.all())
-        if request.user not in allowed_users and not request.user.is_superuser:
-            raise PermissionDenied(
-                "403: Forbidden. The user must be a member of the board to which the task belongs."
-            )
-
+        print("task:", task)
         if request.method == "GET":
+            print("request.method ", request.method)
             comments = task.comments.all().order_by("created_at")
             serialiser = TaskCommentSerializer(comments, many=True)
             return Response(serialiser.data, status=status.HTTP_200_OK)
@@ -384,7 +344,6 @@ class TasksView(
                 task=task, author=author, content=content
             )
             serialiser = TaskCommentSerializer(new_comment)
-
             return Response(serialiser.data, status=status.HTTP_201_CREATED)
 
 

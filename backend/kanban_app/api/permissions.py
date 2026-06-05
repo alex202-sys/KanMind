@@ -22,6 +22,7 @@ class isBoardOwnerOrMemberBoardOrAllPost(BasePermission):
         return True
 
     def has_object_permission(self, request, view, obj):
+        print("has_object_permission")
         user = request.user
         if user.is_superuser:
             return True
@@ -33,13 +34,22 @@ class isBoardOwnerOrMemberBoardOrAllPost(BasePermission):
                 raise PermissionDenied(
                     detail="403: Forbidden. Only the owner of the board can delete it.",
                 )
-
+        print(
+            "user:",
+            user,
+            "  obj.owner: ",
+            obj.owner,
+            "    request.method: ",
+            request.method,
+            " member:",
+            obj.member.all(),
+        )
         # all othe methods except DELETE: PATCH, PUT, GET, HEAD, OPTIONS
         if obj.owner == user or user in obj.member.all():
             return True
         else:
             raise PermissionDenied(
-                "403: Forbidden. The user must be either the owner or a member of the board."
+                "403:     Forbidden. The user must be either the owner or a member of the board."
             )
         return False
 
@@ -52,37 +62,19 @@ class IsMemberOwnerBoardOrCreatorTask(BasePermission):
     def has_permission(self, request, view):
         if not request.user or not request.user.is_authenticated:
             return False
-        print("has_permission  request.user:", request.user)
-        print("has_permission  request.method:", request.method)
-
         # GET for assignee, reviewer,  must be a eingeloggt
         return True
 
     def has_object_permission(self, request, view, obj):
-        print("1 as_object_permission  request.user:", request.user)
         user = request.user
         if user.is_superuser:
             return True
 
-        print("2 has_object_permission  request.method:", request.method)
         if request.method == "DELETE":
-            print(
-                "DELETE method. user:",
-                user,
-                "obj.creator:",
-                obj.creator,
-                "obj.board.owner:",
-                obj.board.owner,
-            )
             if obj.creator == user or obj.board.owner == user:
-                print("DELETE allowed. user:", user)
                 return True
             else:
-                print("DELETE not allowed. user:", user)
                 return False
-                # raise PermissionDenied(
-                #     detail="403: Forbidden. Only the creator of the task or the board owner can delete it.",
-                # )
 
         if request.method == "GET":
             raise PermissionDenied(
@@ -98,3 +90,65 @@ class IsMemberOwnerBoardOrCreatorTask(BasePermission):
             )
         # all other user except member forbidden
         return False
+
+
+class isCreatorCommentOrSuperuser(BasePermission):
+    """
+    - DELETE: only the author of the comment or superuser can delete the comment.
+    """
+
+    def has_permission(self, request, view):
+        if not request.user or not request.user.is_authenticated:
+            return False
+        # all methods POST, GET, PATCH, PUT, DELETE, HEAD, OPTIONS allwed
+        return True
+
+    def has_object_permission(self, request, view, obj):
+        user = request.user
+        if user.is_superuser:
+            return True
+        print("has_object_permission request.method ", request.method)
+        print("obj.author ", obj.author, "user ", user)
+        if request.method == "DELETE":
+            if obj.author == user:
+                return True
+            else:
+                raise PermissionDenied(
+                    detail="403: Forbidden. Only the author of the comment can delete it.",
+                )
+        # all other methods except DELETE: PATCH, PUT, GET, HEAD, OPTIONS
+        return True
+
+
+class isMemberOfBoardsOrSuperuser(BasePermission):
+    """
+    - GET, POST: only members of the board to which the task belongs or superusers can access this endpoint.
+    """
+
+    def has_permission(self, request, view):
+        if not request.user or not request.user.is_authenticated:
+            return False
+        print("has_permission ")
+        if request.user.is_superuser:
+            return True
+        # all methods POST, GET, PATCH, PUT, DELETE, HEAD, OPTIONS allwed if members board
+        return True
+
+    def has_object_permission(self, request, view, obj):
+        user = request.user
+        if user.is_superuser:
+            return True
+        print("has_object_permission request.user ", request.user)
+        print(
+            "has_object_permission Prüf is member?:",
+            obj.board.member.filter(id=user.id).exists(),
+        )
+        # if request.user in Board.objects.filter(member=request.user):
+        print("has_object_permission obj : ", obj)
+
+        if obj.board.member.filter(id=user.id).exists():
+            return True
+        else:
+            raise PermissionDenied(
+                "403: Forbidden. The user must be a member of the board."
+            )
