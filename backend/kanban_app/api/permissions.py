@@ -21,7 +21,6 @@ class isBoardOwnerOrMemberBoardOrAllPost(BasePermission):
         return True
 
     def has_object_permission(self, request, view, obj):
-        print("has_object_permission")
         user = request.user
         if user.is_superuser:
             return True

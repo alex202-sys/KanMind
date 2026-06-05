@@ -75,7 +75,6 @@ class BoardListView(
         - GET/PUT/PATCH/DELETE: owner or Member.
         - DELETE: if not owner then permissiondenied in permissions.py.
         """
-        print("get_queryset")
         user = self.request.user
         if user.is_superuser:
             return Board.objects.all()
@@ -131,7 +130,6 @@ class TasksView(
         if self.action in ["destroy", "comments"]:
             try:
                 obj_delete = Task.objects.get(pk=self.kwargs.get("pk"))
-                print("get_queryset obj_delete ", obj_delete)
                 return Task.objects.all()
             except Task.DoesNotExist:
                 raise NotFound(
@@ -245,26 +243,16 @@ class TasksView(
 class EmailCheckView(mixins.ListModelMixin, viewsets.GenericViewSet):
     """ViewSet for checking if a user with a given email exists.
     It allows authenticated users to check if an email is already associated
-    with an existing user account. The view expects an 'email' query parameter
-    and returns the user details if a user with that email exists, or an appropriate
-    error message if the email is missing, the user is not authenticated, or no user
-    with that email is found.
-    """
+    with an existing user account."""
 
     queryset = User.objects.all()
     serializer_class = UserNestedSerializer
+    permission_classes = [IsAuthenticated]
 
     def list(self, request, *args, **kwargs):
         """Check if a user with the given email exists and return their details.
-        Only authenticated users can access this endpoint. The email to check is
-        """
+        Only authenticated users can access this endpoint."""
         email = request.query_params.get("email")
-
-        if not request or not request.user.is_authenticated:
-            return Response(
-                {"error": "401: Nicht autorisiert. Der Benutzer muss eingeloggt sein."},
-                status=status.HTTP_401_UNAUTHORIZED,
-            )
 
         if not email:
             return Response(
@@ -278,7 +266,6 @@ class EmailCheckView(mixins.ListModelMixin, viewsets.GenericViewSet):
             user_obj = User.objects.get(email=email)
             serializer = self.get_serializer(user_obj)
             return Response(serializer.data, status=status.HTTP_200_OK)
-
         except User.DoesNotExist:
             return Response(
                 {"error": "404: Email not found. The email does not exist."},

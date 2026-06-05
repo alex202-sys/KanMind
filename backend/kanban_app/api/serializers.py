@@ -167,11 +167,7 @@ class BoardsSerializer(serializers.ModelSerializer):
 
 class UserNestedSerializer(serializers.ModelSerializer):
     """_fullname_ is a read-only field that concatenates
-    the first and last name of the user. If both are empty,
-    it falls back to the username.
-    This allows the frontend to display a full name
-    for the user without needing to concatenate it on
-    """
+    the first and last name of the user."""
 
     fullname = serializers.SerializerMethodField()
 
