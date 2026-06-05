@@ -52,14 +52,7 @@ def custom_exception_handler(exc, context):
     return response
 
 
-class BoardListView(
-    mixins.ListModelMixin,
-    mixins.CreateModelMixin,
-    mixins.UpdateModelMixin,
-    mixins.RetrieveModelMixin,
-    mixins.DestroyModelMixin,
-    viewsets.GenericViewSet,
-):
+class BoardListView(viewsets.ModelViewSet):
     """ViewSet for managing Board instances with custom permissions and behaviors.
     - GET: List all boards where the user is the owner or a member, or all boards for superusers.
     - POST: Create a new board (all authenticated users can create).
@@ -91,14 +84,7 @@ class BoardListView(
         serializer.save(owner=self.request.user)
 
 
-class TasksView(
-    mixins.ListModelMixin,
-    mixins.CreateModelMixin,
-    mixins.UpdateModelMixin,
-    mixins.RetrieveModelMixin,
-    mixins.DestroyModelMixin,
-    viewsets.GenericViewSet,
-):
+class TasksView(viewsets.ModelViewSet):
     """ViewSet for managing Task instances with custom permissions and behaviors.
     - GET: List all tasks where the user is the creator, or the user is assignee
       or reviewer, or the user is a member of the board to which the task belongs,
