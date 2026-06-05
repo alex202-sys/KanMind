@@ -7,9 +7,7 @@ from rest_framework.decorators import action
 from rest_framework.response import Response
 from rest_framework.exceptions import (
     NotAuthenticated,
-    PermissionDenied,
     NotFound,
-    ValidationError,
 )
 from rest_framework.status import (
     HTTP_201_CREATED,
@@ -70,29 +68,11 @@ class BoardListView(
     serializer_class = BoardsSerializer
     permission_classes = [isBoardOwnerOrMemberBoardOrAllPost]
 
-    def initial(self, request, *args, **kwargs):
-        """_summary_
-
-        Args:
-            request (_type_): _description_
-
-        Raises:
-            NotAuthenticated: _description_
-        """
-        super().initial(request, *args, **kwargs)
-        if not request.user or not request.user.is_authenticated:
-            raise NotAuthenticated(
-                "401: Nicht autorisiert. Der Benutzer muss eingeloggt sein."
-            )
-
     def get_queryset(self):
         """
         - superusers have access to all boards.
         - GET/PUT/PATCH/DELETE: owner or Member.
         - DELETE: if not owner then permissiondenied in permissions.py.
-
-        Returns:
-            _type_: _description_
         """
         print("get_queryset")
         user = self.request.user
@@ -106,80 +86,9 @@ class BoardListView(
 
     def perform_create(self, serializer):
         """set current user as owner of the board
-           POST: all authenticated users may create a board.
-           validate members is in validate BoardsSerializer,
-           because we need to check if all members exist in
-           the database before creating the board and adding members to it.
-        Args:
-            serializer (_type_): _description_
+        POST: all authenticated users may create a board.
         """
-        members_liste = serializer.validated_data.get("member", [])
-        print("validated_data in perform_create:", serializer.validated_data)
-        # members_liste = validated_data.pop("members", [])
-        print("members_liste in perform_create:", members_liste)
-        instance = serializer.save(owner=self.request.user)
-
-        if members_liste:
-            instance.member.set(members_liste)
-
-    def perform_update(self, serializer):
-        """Update the title and members if they were transmitted from the frontend,
-        and the owner to the actual user if it was previously empty.
-        Only the owner of the board or member can update the board,
-        otherwise permission denied in permissions.py.
-        """
-        validate_members = serializer.validated_data.get("member", [])
-        validate_title = serializer.validated_data.get("title", "")
-        # if members or title in request data, then update the board,
-        #  otherwise only update the title and do not change the members of the board
-        if validate_members or validate_title:
-            board_instance = serializer.save()
-            board_instance.member.set(validate_members)
-
-        # if no owner, set current user as owner of the board
-        user = self.request.user
-        aktuelles_board = serializer.instance
-        aktueller_owner = aktuelles_board.owner
-        if aktueller_owner is None:
-            serializer.save(owner_id=user.id)
-        return Response(serializer.data, status=status.HTTP_200_OK)
-
-    def perform_destroy(self, instance):
-        """Only the owner of the board can delete the board, otherwise
-        permission denied in permissions.py. Superusers can delete any board.
-        If the user is authorized to delete the board,
-        it is deleted and a 204 No Content response is returned.
-        """
-        instance.delete()
-        return Response(
-            None,
-            status=status.HTTP_204_NO_CONTENT,
-        )
-
-    def retrieve(self, request, *args, **kwargs):
-        """Retrieve a board instance. Only the owner of the board
-        or member can retrieve the board, otherwise permission denied
-        in permissions.py. Superusers can retrieve any board.
-        """
-        # pk = kwargs.get("pk")
-        # try:
-        #     #board = Board.objects.get(pk=pk)
-        #     board = Board.objects.get_queryset()
-
-        #     print("retrieve board", board)
-        # except Board.DoesNotExist:
-        #     raise NotFound(
-        #         "404: Board not found. The specified Board ID does not exist."
-        #     )
-
-        # aufgerufen und ggf. ein 403-Fehler geworfen!
-        instance = self.get_object()
-        print("retrieve instance", instance)
-        # 2. Objekt endgültig löschen
-        # self.perform_retrieve(instance)
-
-        serializer = self.get_serializer(instance)
-        return Response(serializer.data, status=status.HTTP_200_OK)
+        serializer.save(owner=self.request.user)
 
 
 class TasksView(

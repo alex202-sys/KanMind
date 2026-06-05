@@ -19,6 +19,7 @@ class BoardsSerializer(serializers.ModelSerializer):
         many=True,
         queryset=User.objects.all(),
         source="member",
+        write_only=True,
         error_messages={
             "does_not_exist": "400: Invalid request data. Some user email addresses may be invalid."
         },
@@ -38,15 +39,11 @@ class BoardsSerializer(serializers.ModelSerializer):
         ]
         # As a result, DRF reads the field during a POST request
         # but does not output it by default during a GET request.
-        extra_kwargs = {"member": {"write_only": True}}
 
     def to_internal_value(self, data):
         """Optimize Duplicate Members"""
-
-        # Hier liegen noch die nackten JSON-Rohdaten vor der Validierung
         if "members" in data and isinstance(data["members"], list):
-            # Wir machen die IDs im rohen JSON eindeutig, BEVOR DRF die Felder prüft!
-            data = data.copy()  # data ist standardmäßig QueryDict/Query-immutable
+            data = data.copy()
             data["members"] = list(set(data["members"]))
 
         return super().to_internal_value(data)
@@ -80,7 +77,7 @@ class BoardsSerializer(serializers.ModelSerializer):
         # for non-superusers, show members details and owner details only in detail view
         if request and view and request.method == "GET" and view.action == "retrieve":
             # ret["owner_id"] = instance.owner.id
-            members_data = [
+            members_liste = [
                 {
                     "id": m.id,
                     "email": getattr(m, "email", ""),
@@ -89,7 +86,7 @@ class BoardsSerializer(serializers.ModelSerializer):
                 for m in instance.member.all()
             ]
 
-            tasks_data = [
+            tasks_liste = [
                 {
                     "id": t.id,
                     "title": t.title,
@@ -130,8 +127,8 @@ class BoardsSerializer(serializers.ModelSerializer):
                 "id": ret.get("id"),
                 "title": ret.get("title"),
                 "owner_id": instance.owner.id if instance.owner else None,
-                "members": members_data,
-                "tasks": tasks_data,
+                "members": members_liste,
+                "tasks": tasks_liste,
             }
 
         # for non-superusers, show members details and owner details only
@@ -165,7 +162,6 @@ class BoardsSerializer(serializers.ModelSerializer):
             ret.pop("tasks_high_prio_count", None)
             ret.pop("owner_id", None)
 
-        ret.pop("member", None)
         return ret
 
 
