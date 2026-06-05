@@ -1,7 +1,6 @@
 from rest_framework.permissions import BasePermission, SAFE_METHODS
 from rest_framework.exceptions import PermissionDenied, NotFound
-from urllib.request import Request
-from kanban_app.models import Board
+from kanban_app.models import Comment
 
 
 class isBoardOwnerOrMemberBoardOrAllPost(BasePermission):
@@ -34,16 +33,7 @@ class isBoardOwnerOrMemberBoardOrAllPost(BasePermission):
                 raise PermissionDenied(
                     detail="403: Forbidden. Only the owner of the board can delete it.",
                 )
-        print(
-            "user:",
-            user,
-            "  obj.owner: ",
-            obj.owner,
-            "    request.method: ",
-            request.method,
-            " member:",
-            obj.member.all(),
-        )
+
         # all othe methods except DELETE: PATCH, PUT, GET, HEAD, OPTIONS
         if obj.owner == user or user in obj.member.all():
             return True
@@ -71,10 +61,11 @@ class IsMemberOwnerBoardOrCreatorTask(BasePermission):
             return True
 
         if request.method == "DELETE":
-            if obj.creator == user or obj.board.owner == user:
+            if obj.creator == user:
                 return True
-            else:
-                return False
+            if obj.board and obj.board.owner == user:
+                return True
+            return False
 
         if request.method == "GET":
             raise PermissionDenied(
@@ -93,31 +84,27 @@ class IsMemberOwnerBoardOrCreatorTask(BasePermission):
 
 
 class isCreatorCommentOrSuperuser(BasePermission):
-    """
-    - DELETE: only the author of the comment or superuser can delete the comment.
-    """
+    """DELETE: only the author of the comment or superuser can delete the comment."""
 
     def has_permission(self, request, view):
-        if not request.user or not request.user.is_authenticated:
-            return False
-        # all methods POST, GET, PATCH, PUT, DELETE, HEAD, OPTIONS allwed
-        return True
+        return request.user or not request.user.is_authenticated
 
     def has_object_permission(self, request, view, obj):
         user = request.user
         if user.is_superuser:
             return True
-        print("has_object_permission request.method ", request.method)
-        print("obj.author ", obj.author, "user ", user)
-        if request.method == "DELETE":
-            if obj.author == user:
-                return True
-            else:
-                raise PermissionDenied(
-                    detail="403: Forbidden. Only the author of the comment can delete it.",
-                )
-        # all other methods except DELETE: PATCH, PUT, GET, HEAD, OPTIONS
-        return True
+
+        comment_id = view.kwargs.get("comment_id")
+        try:
+            comment = obj.comments.get(id=comment_id)
+        except Comment.DoesNotExist:
+            raise NotFound("404: Comment not found.")
+        if comment.author == user:
+            return True
+
+        raise PermissionDenied(
+            detail="403: Forbidden. Only the author of the comment can delete it.",
+        )
 
 
 class isMemberOfBoardsOrSuperuser(BasePermission):
@@ -128,7 +115,6 @@ class isMemberOfBoardsOrSuperuser(BasePermission):
     def has_permission(self, request, view):
         if not request.user or not request.user.is_authenticated:
             return False
-        print("has_permission ")
         if request.user.is_superuser:
             return True
         # all methods POST, GET, PATCH, PUT, DELETE, HEAD, OPTIONS allwed if members board
@@ -138,15 +124,11 @@ class isMemberOfBoardsOrSuperuser(BasePermission):
         user = request.user
         if user.is_superuser:
             return True
-        print("has_object_permission request.user ", request.user)
-        print(
-            "has_object_permission Prüf is member?:",
-            obj.board.member.filter(id=user.id).exists(),
-        )
-        # if request.user in Board.objects.filter(member=request.user):
-        print("has_object_permission obj : ", obj)
 
-        if obj.board.member.filter(id=user.id).exists():
+        # if request.user in Board.objects.filter(member=request.user):
+        if obj.board and obj.board.member.filter(id=user.id).exists():
+            return True
+        elif not obj.board:
             return True
         else:
             raise PermissionDenied(

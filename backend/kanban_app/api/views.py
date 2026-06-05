@@ -8,6 +8,7 @@ from rest_framework.response import Response
 from rest_framework.exceptions import (
     NotAuthenticated,
     NotFound,
+    PermissionDenied,
 )
 from rest_framework.status import (
     HTTP_201_CREATED,
@@ -130,6 +131,7 @@ class TasksView(
         if self.action in ["destroy", "comments"]:
             try:
                 obj_delete = Task.objects.get(pk=self.kwargs.get("pk"))
+                print("get_queryset obj_delete ", obj_delete)
                 return Task.objects.all()
             except Task.DoesNotExist:
                 raise NotFound(
@@ -138,7 +140,6 @@ class TasksView(
 
         # retrieve, update, partial_update, post, # , "create", "post",
         if self.action in ["update", "partial_update"]:
-            print("get_queryset action ", self.action)
             return Task.objects.filter(board__member=user).distinct()
 
         # GET, retrieve for assignee, reviewer in tasks
@@ -150,19 +151,12 @@ class TasksView(
         """
         serializer.save(creator=self.request.user)
 
-    def perform_update(self, serializer):
-        """Only members of the board to which the task belongs or superusers can update tasks.
-        If the user is not authorized to update the task, a PermissionDenied exception is raised.
-        """
-        serializer.save()
-        return super().perform_update(serializer)
-
     def destroy(self, request, *args, **kwargs):
-        """Only the creator of the task, the owner of the board to which the task belongs,
-        or superusers can delete tasks.
+        """Only the creator of the task or the owner of the board to which the task belongs,
+        or superusers can delete tasks. if owner is None ignore it.
         """
         instance = self.get_object()
-        self.perform_destroy(instance)
+        instance.delete()
 
         return Response(status=status.HTTP_204_NO_CONTENT)
 
@@ -196,20 +190,15 @@ class TasksView(
         permission_classes=[isCreatorCommentOrSuperuser],
     )
     def delete_comments(self, request, pk=None, comment_id=None):
-        """Delete a comment from a task. Only the author of the comment can delete it.
-        If the user is not authenticated, a 401 Unauthorized response is returned.
-        """
-        try:
-            task = Task.objects.get(pk=pk)
-        except Task.DoesNotExist:
-            raise NotFound("404: Task nicht gefunden.")
-        print("delete_comments")
-        try:
-            comment = Comment.objects.get(pk=comment_id, task=task)
-        except Comment.DoesNotExist:
-            raise NotFound("404: Kommentar nicht gefunden.")
+        """Delete a comment from a task. Only the author of the comment can delete it."""
+        task = self.get_object()
 
-        comment.delete()
+        try:
+            comment = task.comments.get(id=comment_id)
+        except Comment.DoesNotExist:
+            raise NotFound("404: comment not found.")
+
+        task.comments.filter(id=comment_id).delete()
         return Response(
             status=status.HTTP_204_NO_CONTENT,
         )
@@ -224,16 +213,13 @@ class TasksView(
         """Handle GET and POST requests for comments related to a specific task.
         Only members of the board to which the task belongs can access this endpoint.
         """
-        print("queryset.methoden ", request.method)
 
         try:
-            # task = Task.objects.get(pk=pk)
             task = self.get_object()
         except Task.DoesNotExist:
             raise NotFound("404: Task not found. The specified task ID does not exist.")
-        print("task:", task)
+
         if request.method == "GET":
-            print("request.method ", request.method)
             comments = task.comments.all().order_by("created_at")
             serialiser = TaskCommentSerializer(comments, many=True)
             return Response(serialiser.data, status=status.HTTP_200_OK)

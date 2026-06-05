@@ -39,14 +39,7 @@ class TaskPriority(models.TextChoices):
 
 
 class Task(models.Model):
-    """_summary_
-
-    Args:
-        models (_type_): _description_
-
-    Returns:
-        _type_: _description_
-    """
+    """ """
 
     title = models.CharField(max_length=255)
     board = models.ForeignKey(
