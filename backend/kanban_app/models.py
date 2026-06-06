@@ -3,6 +3,8 @@ from django.db import models
 
 
 class Board(models.Model):
+    """Board hat a owner (user) und list of member (user)"""
+
     title = models.CharField(max_length=155)
     owner = models.ForeignKey(
         User, null=True, on_delete=models.SET_NULL, related_name="owners"
@@ -14,11 +16,7 @@ class Board(models.Model):
 
 
 class TaskStatus(models.TextChoices):
-    """_summary_
-
-    Args:
-        models (_type_): _description_
-    """
+    """Status of tasks, a selection field in a task."""
 
     IN_PROGRESS = "in-progress", "In Progress"
     TODO = "to-do", "To-Do"
@@ -27,11 +25,7 @@ class TaskStatus(models.TextChoices):
 
 
 class TaskPriority(models.TextChoices):
-    """_summary_
-
-    Args:
-        models (_type_): _description_
-    """
+    """Status of priority, a selection field in a task."""
 
     HIGH = "high", "High"
     MEDIUM = "medium", "Medium"
@@ -39,7 +33,8 @@ class TaskPriority(models.TextChoices):
 
 
 class Task(models.Model):
-    """ """
+    """Each "Task" model belongs to a "Board" model; it has "Status" and "Priority"
+    choice fields, as well as "Assignee" and "Reviewer" fields linked to users."""
 
     title = models.CharField(max_length=255)
     board = models.ForeignKey(
@@ -82,10 +77,8 @@ class Task(models.Model):
 
 
 class Comment(models.Model):
-    """_summary_
-
-    Args:
-        models (_type_): _description_
+    """Each comment has an author and is linked to a task belonging to a board;
+    it can be created or edited by a board member, but deleted only by its author.
     """
 
     task = models.ForeignKey(
