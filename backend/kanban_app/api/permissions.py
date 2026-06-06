@@ -124,7 +124,6 @@ class isMemberOfBoardsOrSuperuser(BasePermission):
         if user.is_superuser:
             return True
 
-        # if request.user in Board.objects.filter(member=request.user):
         if obj.board and obj.board.member.filter(id=user.id).exists():
             return True
         elif not obj.board:

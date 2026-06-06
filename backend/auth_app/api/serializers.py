@@ -49,7 +49,6 @@ class RegistrationSerializer(serializers.ModelSerializer):
         return f"{first} {last}".strip() or obj.user.username
 
     def validate_email(self, value):
-        print("validate_email  value", value)
         if User.objects.filter(email=value).exists():
             raise serializers.ValidationError("User with the same email already exists")
         return value
@@ -62,7 +61,6 @@ class RegistrationSerializer(serializers.ModelSerializer):
     def validate(self, data):
 
         if data.get("password") != data.get("repeated_password"):
-            print("passwor is no valid.  data:", data)
             raise serializers.ValidationError({"password": "Passwords do not match"})
         return data
 
