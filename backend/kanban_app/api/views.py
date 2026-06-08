@@ -124,7 +124,8 @@ class TasksView(viewsets.ModelViewSet):
 
         # retrieve, update, partial_update, post, # , "create", "post",
         if self.action in ["update", "partial_update"]:
-            return Task.objects.filter(board__member=user).distinct()
+            # all tasks belonging to board where the user is a member
+            return Task.objects.all()
 
         # GET, retrieve for assignee, reviewer in tasks
         return Task.objects.filter(Q(assignee=user) | Q(reviewer=user)).distinct()

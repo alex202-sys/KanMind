@@ -66,12 +66,15 @@ class IsMemberOwnerBoardOrCreatorTask(BasePermission):
                 return True
             return False
 
+        # if request.method in ["PATCH", "PUT"]:
+        #      return Task.objects.filter(board__member=user).distinct()
+
         if request.method == "GET":
             raise PermissionDenied(
                 detail="403: This Endpoint is Forbidden.",
             )
 
-        # all other methods except DELETE: PATCH, PUT, GET, HEAD, OPTIONS
+        # all other methods except DELETE, GET: PATCH, PUT, HEAD, OPTIONS
         if obj.board.member.filter(id=user.id).exists():
             return True
         else:
@@ -86,7 +89,9 @@ class isCreatorCommentOrSuperuser(BasePermission):
     """DELETE: only the author of the comment or superuser can delete the comment."""
 
     def has_permission(self, request, view):
-        return request.user or not request.user.is_authenticated
+        if not request.user or not request.user.is_authenticated:
+            return False
+        return True
 
     def has_object_permission(self, request, view, obj):
         user = request.user
