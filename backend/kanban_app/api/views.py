@@ -112,18 +112,8 @@ class TasksView(viewsets.ModelViewSet):
         if user.is_superuser:
             return Task.objects.all()
 
-        # check if task exist, otherwise not found in destroy method
-        if self.action in ["destroy", "comments"]:
-            try:
-                obj_delete = Task.objects.get(pk=self.kwargs.get("pk"))
-                return Task.objects.all()
-            except Task.DoesNotExist:
-                raise NotFound(
-                    "404: Task not found. The specified task ID does not exist."
-                )
-
         # retrieve, update, partial_update, post, # , "create", "post",
-        if self.action in ["update", "partial_update"]:
+        if self.action in ["update", "partial_update", "delete_comments"]:
             # all tasks belonging to board where the user is a member
             return Task.objects.all()
 
@@ -177,7 +167,6 @@ class TasksView(viewsets.ModelViewSet):
     def delete_comments(self, request, pk=None, comment_id=None):
         """Delete a comment from a task. Only the author of the comment can delete it."""
         task = self.get_object()
-
         try:
             comment = task.comments.get(id=comment_id)
         except Comment.DoesNotExist:

@@ -106,6 +106,7 @@ class isCreatorCommentOrSuperuser(BasePermission):
             comment = obj.comments.get(id=comment_id)
         except Comment.DoesNotExist:
             raise NotFound("404: Comment not found.")
+
         if comment.author == user:
             return True
 
