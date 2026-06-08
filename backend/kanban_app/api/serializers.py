@@ -49,18 +49,23 @@ class BoardsSerializer(serializers.ModelSerializer):
         return super().to_internal_value(data)
 
     def get_member_count(self, obj):
+        """Set of members"""
         return obj.member.count()
 
     def get_ticket_count(self, obj):
+        """Set of tickets"""
         return obj.tasks.count()
 
     def get_tasks_to_do_count(self, obj):
+        """Set of tasks with the status to-do"""
         return obj.tasks.filter(status=TaskStatus.TODO).count()
 
     def get_tasks_high_prio_count(self, obj):
+        """Set of tasks with the status high priority"""
         return obj.tasks.filter(priority=TaskPriority.HIGH).count()
 
     def get_owner_id(self, obj):
+        """boards owner"""
         if obj.owner:
             return obj.owner.id
         return None
@@ -176,6 +181,7 @@ class UserNestedSerializer(serializers.ModelSerializer):
         fields = ["id", "email", "fullname"]
 
     def get_fullname(self, obj):
+        """full name of user, first name + last name"""
         full_name = f"{obj.first_name} {obj.last_name}".strip()
         return full_name if full_name else obj.username
 
@@ -282,16 +288,19 @@ class TaskSerializer(serializers.ModelSerializer):
             raise exc
 
     def get_reviewer_id(self, obj):
+        """get the reviewer id and return None if not"""
         if obj.reviewer:
             return obj.reviewer.id
         return None
 
     def get_assignee_id(self, obj):
+        """get the assignee id and return None if not"""
         if obj.assignee:
             return obj.assignee.id
         return None
 
     def get_comments_count(self, obj):
+        """Number of tasks comment"""
         if hasattr(obj, "comments"):
             return obj.comments.count()
         return obj.comment_set.count()
@@ -408,6 +417,7 @@ class TaskCommentSerializer(serializers.ModelSerializer):
         fields = ["id", "created_at", "author", "content"]
 
     def get_author(self, obj):
+        """get authors fullname if it or username"""
         if obj.author:
             return obj.author.get_full_name() or obj.author.username
         return "Unbekannter Autor"

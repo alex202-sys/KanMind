@@ -105,16 +105,14 @@ class TasksView(viewsets.ModelViewSet):
         """
         - superusers have access to all tasks.
         - GET: assignee, reviewer
-        - PUT/PATCH: member of the board
-        - DELETE: check if task exist
+        - PUT/PATCH/DELETE all tasks in queryset
         """
         user = self.request.user
         if user.is_superuser:
             return Task.objects.all()
 
-        # retrieve, update, partial_update, post, # , "create", "post",
-        if self.action in ["update", "partial_update", "delete_comments"]:
-            # all tasks belonging to board where the user is a member
+        if self.action in ["update", "partial_update", "delete_comments", "destroy"]:
+            # List of all tasks returned
             return Task.objects.all()
 
         # GET, retrieve for assignee, reviewer in tasks
