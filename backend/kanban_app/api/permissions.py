@@ -11,7 +11,7 @@ class isBoardOwnerOrMemberBoardOrAllPost(BasePermission):
     """
 
     def has_permission(self, request, view):
-
+        """Only authenticated users can make a purchase."""
         if request.user.is_superuser:
             return True
 
@@ -21,6 +21,8 @@ class isBoardOwnerOrMemberBoardOrAllPost(BasePermission):
         return True
 
     def has_object_permission(self, request, view, obj):
+        """- DELETE: only owner can delete the board, in all other cases,
+        the user must be a member of the board.."""
         user = request.user
         if user.is_superuser:
             return True
@@ -49,12 +51,14 @@ class IsMemberOwnerBoardOrCreatorTask(BasePermission):
     """
 
     def has_permission(self, request, view):
+        """Only authenticated users can make a purchase."""
         if not request.user or not request.user.is_authenticated:
             return False
         # GET for assignee, reviewer,  must be a eingeloggt
         return True
 
     def has_object_permission(self, request, view, obj):
+        """A superuser or the creator of tje task or the owner of the board can task deleted"""
         user = request.user
         if user.is_superuser:
             return True
@@ -65,10 +69,7 @@ class IsMemberOwnerBoardOrCreatorTask(BasePermission):
             if obj.board and obj.board.owner == user:
                 return True
             return False
-
-        # if request.method in ["PATCH", "PUT"]:
-        #      return Task.objects.filter(board__member=user).distinct()
-
+        # The GET method is not permitted for individual task requests.
         if request.method == "GET":
             raise PermissionDenied(
                 detail="403: This Endpoint is Forbidden.",
@@ -89,11 +90,13 @@ class isCreatorCommentOrSuperuser(BasePermission):
     """DELETE: only the author of the comment or superuser can delete the comment."""
 
     def has_permission(self, request, view):
+        """Only authenticated users can make a purchase."""
         if not request.user or not request.user.is_authenticated:
             return False
         return True
 
     def has_object_permission(self, request, view, obj):
+        """A superuser or the author can deleted comment"""
         user = request.user
         if user.is_superuser:
             return True
@@ -117,6 +120,7 @@ class isMemberOfBoardsOrSuperuser(BasePermission):
     """
 
     def has_permission(self, request, view):
+        """Only authenticated users can make a purchase."""
         if not request.user or not request.user.is_authenticated:
             return False
         if request.user.is_superuser:
@@ -125,15 +129,20 @@ class isMemberOfBoardsOrSuperuser(BasePermission):
         return True
 
     def has_object_permission(self, request, view, obj):
+        """A superuser or the member of board can get permission by method "get", "post" for task"""
         user = request.user
         if user.is_superuser:
             return True
-
+        # user belong to member of the board
         if obj.board and obj.board.member.filter(id=user.id).exists():
             return True
+
+        # if the task belong no to the board
         elif not obj.board:
-            return True
-        else:
             raise PermissionDenied(
-                "403: Forbidden. The user must be a member of the board."
+                "403: Forbidden. The task should belong to the board."
             )
+
+        raise PermissionDenied(
+            "403: Forbidden. The user must be a member of the board."
+        )

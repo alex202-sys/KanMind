@@ -4,8 +4,7 @@ from auth_app.models import UserProfile
 
 
 class UserProfileSerializer(serializers.ModelSerializer):
-    """Serializer for the UserProfile model. It includes a method field
-    `fullname` that combines the first and last name of the associated User model.
+    """Serializer for the UserProfile model.
     The serializer allows for serialization and deserialization of UserProfile
     instances, including the related User information. The `fullname` field is
     read-only and is generated based on the first and last name of the user."""
@@ -17,6 +16,8 @@ class UserProfileSerializer(serializers.ModelSerializer):
         fields = ["id", "user", "fullname", "bio", "location"]
 
     def get_fullname(self, obj):
+        """method field `fullname` that combines the first and last name of the
+        associated User model."""
         first = obj.user.first_name
         last = obj.user.last_name
         name = f"{first} {last}".strip()
@@ -44,22 +45,26 @@ class RegistrationSerializer(serializers.ModelSerializer):
         extra_kwargs = {"password": {"write_only": True}}
 
     def get_fullname(self, obj):
+        """method field `fullname` that combines the first and last name of the
+        associated User model."""
         first = obj.user.first_name
         last = obj.user.last_name
         return f"{first} {last}".strip() or obj.user.username
 
     def validate_email(self, value):
+        """_check user with the same email"""
         if User.objects.filter(email=value).exists():
             raise serializers.ValidationError("User with the same email already exists")
         return value
 
     def validate_username(self, value):
+        """_check user with the same username"""
         if User.objects.filter(username=value).exists():
             raise serializers.ValidationError("The User is already exists")
         return value
 
     def validate(self, data):
-
+        """check repeated password and password"""
         if data.get("password") != data.get("repeated_password"):
             raise serializers.ValidationError({"password": "Passwords do not match"})
         return data
