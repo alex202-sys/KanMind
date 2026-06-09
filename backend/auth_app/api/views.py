@@ -57,6 +57,7 @@ class RegistrationView(generics.CreateAPIView):
     """
 
     serializer_class = RegistrationSerializer
+    permission_classes = [permissions.AllowAny]
 
     def post(self, request, *args, **kwargs):
         """POST: Register a new user."""
@@ -87,6 +88,8 @@ class UserLoginView(ObtainAuthToken):
     their email and password. Upon successful authentication, an authentication token
     is generated and returned along with the user's information.
     """
+
+    permission_classes = [permissions.AllowAny]
 
     def post(self, request, *args, **kwargs):
         """If the login credentials are invalid or if there is an error during the login
