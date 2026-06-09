@@ -104,14 +104,21 @@ class TasksView(viewsets.ModelViewSet):
     def get_queryset(self):
         """
         - superusers have access to all tasks.
-        - GET: assignee, reviewer
-        - PUT/PATCH/DELETE all tasks in queryset
+        - GET for task: assignee, reviewer
+        - GET / POST comments: all tasks in queryset
+        - PUT/PATCH/DELETE task: all tasks in queryset
         """
         user = self.request.user
         if user.is_superuser:
             return Task.objects.all()
 
-        if self.action in ["update", "partial_update", "delete_comments", "destroy"]:
+        if self.action in [
+            "update",
+            "partial_update",
+            "delete_comments",
+            "destroy",
+            "comments",
+        ]:
             # List of all tasks returned
             return Task.objects.all()
 
@@ -185,7 +192,6 @@ class TasksView(viewsets.ModelViewSet):
         """Handle GET and POST requests for comments related to a specific task.
         Only members of the board to which the task belongs can access this endpoint.
         """
-
         try:
             task = self.get_object()
         except Task.DoesNotExist:
